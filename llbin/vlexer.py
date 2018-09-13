@@ -242,6 +242,7 @@ ReservedWordsStr = '''
     signed input output inout wire logic enum reg
     unique
     always begin end
+    const
 
 assign deassign
 force release

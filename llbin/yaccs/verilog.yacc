@@ -1,6 +1,6 @@
 
 %token module number token endmodule assign 
-%token input  output  inout reg  wire  tri0 tri1 signed  event logic enum
+%token input  output  inout reg  wire  tri0 tri1 signed  event logic enum const
 %token bin hex dig integer real wreal
 %token ubin uhex udig
 %token domino and_and or_or eq3 eq_eq not_eq gr_eq sm_eq
@@ -89,6 +89,7 @@ Definition :
     | IntDir InstParams Tokens_list ';'
     | enum WireLogic Width '{' Tokens_list '}' Tokens_list ';'  
     | token domino token token ';'
+    | const logic Width Width token '=' '{' Exprs '}' ';'
     ;
 
 

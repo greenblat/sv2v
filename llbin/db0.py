@@ -298,8 +298,23 @@ def get_soft_assigns(Item1):
 
 
 def get_statement(Item):
-    List = DataBase[Item]
+    if (type(Item)==types.TupleType):
+        List = DataBase[Item]
+    else:
+        List = Item
+
+    Vars = matches.matches(List,'!AlwaysKind !When !Statement')
+    if Vars:
+        Always = get_expr(Vars[0])
+        When = get_when(Vars[1])
+        Stats = get_statement(Vars[2])
+        return [Always,When,Stats]
+        
+
     if len(List)==1:
+        if List[0][0]=='Always':
+            LL = DataBase[List[0]]
+            return get_statement(LL)
         if List[0][0]=='While_statement':
             List2 = DataBase[List[0]]
             Cond = get_expr(List2[2])
@@ -751,6 +766,7 @@ def get_header_list(Item1):
 
 
 def add_always(List):
+    Kind = get_expr(List[0])
     if len(List)==3:
         When = get_when(List[1])
         Statement = get_statement(List[2])
@@ -758,7 +774,7 @@ def add_always(List):
             When = ['list']+When
         else:
             When = When[0]
-        Current.add_always(Statement,When)
+        Current.add_always(Statement,When,Kind)
     elif len(List)==2:
         Statement = get_statement(List[1])
         Current.add_always(Statement)
@@ -999,10 +1015,53 @@ def add_definition(List):
         Current.add_sig(Name,Dir,('double',Wid0,Wid1))
         return
 
+    Vars = matches.matches(List,'const logic !Width !Width ? = { !Exprs } ;',False)
+    if Vars:
+        Wid0 = get_wid(Vars[0])
+        Wid1 = get_wid(Vars[1])
+        Exprs = get_expr_list(Vars[3])
+        Name = Vars[2];
+        Current.add_sig(Name,'wire',('double',Wid1,Wid0))
+        for ind,Val in enumerate(Exprs):
+            Current.add_hard_assign(['subbit',Name,ind],Val)
+        return
+        
 
 
-    logs.log_err('bad definition "%s"'%str(List))
+    logs.log_err('bad new definition "%s"'%str(List))
 
+
+def get_expr_list(Item):
+    if (type(Item)==types.ListType)and(len(Item)==1):
+        return get_expr_list(Item[0])
+    if in_db(Item):
+        return get_expr_list(DataBase[Item])
+
+    if is_terminal(Item):
+        return [get_expr(Item)]
+
+
+    Vars = matches.matches(Item,'!Exprs , !Expr')
+    if Vars:
+        if in_db(Vars[0]):
+            More = get_expr_list(DataBase[Vars[0]])
+        else:
+            More = get_expr(Vars[0])
+        Expr = get_expr(Vars[1])
+        return More + [Expr]
+
+    logs.log_err('get_expr_list failed on "%s"'%str(Item))
+    return []
+
+def in_db(Item):
+    if type(Item) != types.TupleType: return False
+    return Item in DataBase
+
+def is_terminal(Item):
+    if type(Item) != types.TupleType: return False
+    return len(Item)==4
+    if type(Item) != types.TupleType: return False
+    return Item in DataBase
 
 def add_parameter(Ptr):
     List2 = DataBase[Ptr]
@@ -1113,12 +1172,16 @@ def get_expr(Item):
             return int(Item[0])
         if Item[1]=='string':
             return Item[0]
+        if Item[1]=='hex':
+            return ['hex',Item[0]]
     if (type(Item)==types.TupleType):
         if Item[0]=='*':
             return '*'
     if len(Item)==2:
         List = DataBase[Item]
         if len(List)==1:
+            if List[0][0]in ['always','always_comb','always_ff']: return 'always'
+            if List[0][0]in ['always','always_comb','always_ff']: return List[0][0]
             if List[0][0]=='Expr':
                 return get_expr(List[0])
             if List[0][1]=='floating':

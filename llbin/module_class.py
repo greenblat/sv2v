@@ -1121,6 +1121,13 @@ def pr_stmt(List,Pref='',Begin=False):
 
             return Str0
 
+        if List[0]=='always':
+            When = pr_expr(List[1])
+            Res = '%s%s(%s)\n'%(Pref,List[0],When)
+            More = pr_stmt(List[2],Pref+'     ')
+            return Res+More
+
+
         if List[0]=='assigns':
             Vars =  matches.matches(List[1],'= ? ?')
             if Vars:
@@ -1265,6 +1272,7 @@ def pr_expr(What):
     if What[0]=='hex':
         if What[1] in ['0',0]:
             return "'h%s"%(What[2])
+        if len(What)==2: return What[1]
         AA = What[2]
         while (len(AA)>1)and(AA[0]=='0'):
             AA = AA[1:]
