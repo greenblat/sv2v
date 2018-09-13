@@ -1,5 +1,5 @@
-
-%token module number token endmodule assign 
+ 
+%token module number token endmodule assign  package endpackage typedef
 %token input  output  inout reg  wire  tri0 tri1 signed  unsigned event logic enum const
 %token bin hex dig integer real wreal
 %token ubin uhex udig
@@ -41,8 +41,9 @@
 %%
 Main : Mains ;
 Mains : Mains MainItem | MainItem  ;
-MainItem : Module | Define ;
+MainItem : Module | Define | Package ;
 Module : module token Hparams Header Module_stuffs endmodule
+Package : package  token ';'  Parameters  endpackage ;
 
 Hparams : '#' '(' head_params ')' |  '#' '(' ')' | ;
 Header : ';' | '(' Header_list ')' ';' | '(' ')' ';' ;
@@ -58,7 +59,12 @@ Header_item :
     | token ;
 
 
+PackageItem :  Parameter | Typedef ;
+Parameters : Parameters PackageItem | PackageItem ;
+Typedef : typedef enum logic Width '{' Pairs  '}' token ';' ;
 Module_stuffs : Mstuff Module_stuffs | ;
+
+
 
 Mstuff :
      Definition

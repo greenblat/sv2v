@@ -252,6 +252,7 @@ Table = [
 ReservedWordsStr = '''
     `define `include `ifdef `ifndef `endif
     module endmodule primitive endprimitive function endfunction
+    package endpackage typedef
     task endtask
     generate endgenerate genvar
     table endtable

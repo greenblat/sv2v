@@ -75,11 +75,22 @@ def scan1(Key):
                 add_define(Item)
             elif Item[0]=='Module':
                 add_module(Item)
+            elif Item[0]=='Package':
+                add_package(Item)
             else:
                 scan1(Item)
         else:
             logs.log_err('exxx %s %s'%(Key,Item))
                 
+def add_package(Key):
+    List = DataBase[Key]
+    Vars = matches.matches(List,'package ? ; !Parameters endpackage')
+    if Vars:
+        List = get_list(Vars[1])
+        for Item in List:
+            logs.log_info('package %s %s'%(Vars[0][0],Item))
+        return
+    logs.log_error('package got list=%s'%str(List))
 
 def add_module(Key):
     global Current,ModuleStuffs
@@ -682,6 +693,32 @@ def get_list(Item):
     if Vars:
         More = get_list(Vars[1])
         return [Vars[0][0]]+More
+
+    Vars = matches.matches(Item,'!Parameters !PackageItem')
+    if Vars:
+        More = get_list(Vars[0])
+        This = get_list(Vars[1])
+        return This+More
+
+    Vars = matches.matches(Item,'parameter !Pairs ;')
+    if Vars:
+        More = get_list(Vars[0])
+        return More
+    Vars = matches.matches(Item,'? = !Expr')
+    if Vars:
+        Expr = get_expr(Vars[1])
+        return [('param',Vars[0][0],Expr)]
+    Vars = matches.matches(Item,'typedef enum logic !Width  { !Pairs } ? ;')
+    if Vars:
+        Wid = get_wid(Vars[0])
+        Pairs = get_list(Vars[1])
+        Name = Vars[2][0]
+        return [('typedef',Name,['enum','logic',Wid],Pairs)]
+    Vars = matches.matches(Item,'!Pairs , !Pair')
+    if Vars:
+        Pairs = get_list(Vars[0])
+        Pair  = get_list(Vars[1])
+        return Pairs+Pair
 
     logs.log_err('get_list %s'%str(Item))
     return []
