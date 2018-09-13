@@ -1,11 +1,11 @@
 
 %token module number token endmodule assign 
-%token input  output  inout reg  wire  tri0 tri1 signed  event logic enum const
+%token input  output  inout reg  wire  tri0 tri1 signed  unsigned event logic enum const
 %token bin hex dig integer real wreal
 %token ubin uhex udig
 %token domino and_and or_or eq3 eq_eq not_eq gr_eq sm_eq
 %token always begin end if else posedge negedge or wait emit
-%token always_comb always_ff
+%token always_comb always_ff always_latch
 %token string defparam parameter localparam case casez casex unique endcase default initial forever
 %token function endfunction task endtask
 %token for while backtick_define backtick_include backtick_timescale backtick_undef define
@@ -15,25 +15,24 @@
 %token pragma
 %token plus_range minus_range
 %token floating
-%token power star
 %token generate endgenerate  genvar
 %token force release
 %token xnor nand nor repeat
 %token supply0 supply1
-%token newver
+%token newver plusplus starstar shift3 crazy1
 
 %right '?' ':' 
 %left and_and
 %left '|' 
 %left '^' xnor nand nor
 %left '&' 
-%left  shift_left shift_right SignedLeft arith_shift_right
+%left  shift3 shift_left shift_right SignedLeft arith_shift_right
 %left  or_or  
 %left '<' '>' sm_eq gr_eq
 %left '+' '-' 
 %left eq3 eq_eq not_eq noteqeq Veryequal 
-%left '*' '/' '%'  power
-%left StarStar
+%left '*' '/' '%'  
+%left starstar
 %left UNARY_PREC
 
 %nonassoc else
@@ -49,7 +48,14 @@ Hparams : '#' '(' head_params ')' |  '#' '(' ')' | ;
 Header : ';' | '(' Header_list ')' ';' | '(' ')' ';' ;
 Header_list : Header_list ',' Header_item | Header_item ;
 
-Header_item : ExtDir token | ExtDir Width token | ExtDir integer token | ExtDir Width token  Width | token ;
+Header_item : 
+      ExtDir token 
+    | ExtDir Width token 
+    | ExtDir integer token 
+    | ExtDir Width token  Width 
+    | ExtDir Width token  BusBit 
+    | ExtDir Width Width token   
+    | token ;
 
 
 Module_stuffs : Mstuff Module_stuffs | ;
@@ -69,6 +75,8 @@ Mstuff :
     | Define
     | pragma
     | newver
+    | if '(' Expr ')' GenStatement 
+    | if '(' Expr ')' GenStatement else GenStatement 
     ;
 
 // Define : backtick_undef token | backtick_define token Expr | backtick_include Expr | backtick_timescale  number token '/' number token  ;
@@ -81,9 +89,11 @@ Definition :
     | IntDir Tokens_list '=' Expr ';'
     | ExtDir Width Tokens_list ';'
     | ExtDir Width Tokens_list Width ';'
+    | ExtDir Width Tokens_list BusBit ';'
     | IntDir Width Tokens_list ';'
     | IntDir Width Tokens_list '=' Expr ';'
     | IntDir Width token Width ';'
+    | IntDir Width token BusBit ';'
     | IntDir Width Width Tokens_list ';'
     | IntDir token Width ';'
     | IntDir InstParams Tokens_list ';'
@@ -144,7 +154,7 @@ Parameter :
     | parameter signed Width Pairs ';'
     ;
 Localparam : localparam Pairs ';' | localparam Width Pairs ';' ;
-Defparam : defparam Dotted '=' Expr ';' ;
+Defparam : defparam token '=' Expr ';' ;
 Pairs : Pairs ',' Pair | Pair ;
 Pair : token '=' Expr ;
 
@@ -169,6 +179,7 @@ Instance :
 // | token '(' Exprs ')' ';' 
 
 
+Crazy : crazy1 default ':' Consts '}' ;
 
 
 Conns_list : Conns_list ',' Connection | Connection ;
@@ -179,7 +190,7 @@ Prms_list : Prms_list ',' PrmAssign | PrmAssign ;
 PrmAssign :  '.' token '(' Expr ')' | '.' token ;
 InstParams : '#' '(' Exprs ')' | '#' number | '#' token | '#' '(' Prms_list ')' | '#' '(' ')'  ;
 
-AlwaysKind : always | always_comb | always_ff ;
+AlwaysKind : always | always_comb | always_ff | always_latch ;
 
 Always : AlwaysKind Statement | AlwaysKind When Statement ;
 
@@ -199,9 +210,9 @@ GenStatement :
     | Instance
     | GenFor_statement
     | Always
-    | Initial
     | if '(' Expr ')' GenStatement 
     | if '(' Expr ')' GenStatement else GenStatement 
+    | Initial
     ;
 
 
@@ -211,7 +222,7 @@ GenFor_statement : for '(' Soft_assigns ';' Expr ';' Soft_assigns ')' GenStateme
 CaseKind : unique case | case ;
 
 
-When : '@' '*' | '@' star | '@' token | '@' '(' When_items ')'  ;
+When : '@' '*' | '@' '(' '*' ')' | '@' token | '@' '(' When_items ')'  ;
 Or_coma : or | ',' ; 
 When_items : When_items Or_coma When_item | When_item ;
 When_item : posedge Expr | negedge Expr | Expr ;
@@ -254,7 +265,6 @@ Statement :
     | For_statement
     | Repeat_statement
     | While_statement
-    | Dotted ';'
     | pragma
     | assign LSH '=' Expr ';'
     ;
@@ -263,7 +273,7 @@ For_statement : for '(' Soft_assigns ';' Expr ';' Soft_assigns ')' Statement ;
 Repeat_statement : repeat '(' Expr ')' Statement ; 
 While_statement : while '(' Expr ')' Statement ; 
 Soft_assigns : Soft_assigns ',' Soft_assign | Soft_assign ;
-Soft_assign : LSH '=' Expr ;
+Soft_assign : LSH '=' Expr | LSH plusplus | integer token '=' Expr | genvar token '=' Expr ;
 Cases : Cases Case | Case ;
 Case : Exprs ':' Statement  | Exprs ':' ';' ;
 Default : default ':'  Statement  | default ':' ';' ;
@@ -272,18 +282,18 @@ Exprs : Exprs ',' Expr | Expr ;
 Statements : Statements Statement | Statement ;
 
 
-LSH : token | token Width | token BusBit Width | token BusBit BusBit | token BusBit | Dotted  |CurlyList ;
+LSH : token | token Width | token BusBit Width | token BusBit BusBit | token BusBit | CurlyList ;
 
 Tokens_list : token ',' Tokens_list | token ;
 
-Width : '[' Expr ':' Expr ']' | '[' Expr plus_range Expr ']' | '[' Expr minus_range Expr ']';
+Width : '[' Expr ':' Expr ']' | '[' Expr plus_range Expr ']' | '[' Expr minus_range Expr ']' ;
 BusBit : '[' Expr ']' ;
 
 
 PureExt : input | output | inout ;
 IntKind  : reg | wire | logic | integer ;
 
-ExtDir : PureExt | PureExt IntKind | PureExt signed | PureExt IntKind signed ;
+ExtDir : PureExt | PureExt IntKind | PureExt signed | PureExt IntKind signed | PureExt unsigned | PureExt IntKind unsigned ;
 
 
 IntDir : IntKind | signed | real | reg signed | wire signed | genvar | supply0 | supply1 | tri0 | tri1 ;
@@ -292,22 +302,18 @@ CurlyList : '{' CurlyItems '}' ;
 CurlyItems : CurlyItems ',' CurlyItem | CurlyItem;
 CurlyItem :   Expr CurlyList   | Expr ; 
 
-Dotted : 
-      token '.' Dotted 
-    | token '.' token 
-    | token '.' token Width 
-    | token '.' token BusBit
-    | token '.' token '(' Expr ')'
-    ;
+Consts : bin | hex | dig | ubin | uhex | udig ;
+
+
 Expr :
      token
-    | Dotted
     | number
     | floating
     | string
     | define
     | define '(' Expr ')' 
     | bin | hex | dig | ubin | uhex | udig
+    | Crazy 
     | token Width
     | token BusBit Width
     | token BusBit BusBit
@@ -323,7 +329,7 @@ Expr :
     | Expr '&' Expr
     | Expr '<' Expr
     | Expr '>' Expr
-    | Expr power Expr
+    | Expr starstar Expr
     | Expr and_and Expr
     | Expr or_or Expr
     | Expr xnor Expr
@@ -335,6 +341,7 @@ Expr :
     | Expr noteqeq Expr
     | Expr gr_eq Expr
     | Expr sm_eq Expr
+    | Expr shift3 Expr
     | Expr shift_left Expr
     | Expr shift_right Expr
     | Expr arith_shift_right Expr

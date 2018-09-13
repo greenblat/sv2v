@@ -75,9 +75,15 @@ class module_class:
             self.inventedNets += 1
             self.add_sig(Name,Dir,Wid)
             return Name
-        if Dir not in ['input wire','output wire','wire','reg','input','output','output reg','integer','inout','tri0','tri1','output reg signed','wire signed','signed wire','reg signed','output signed','input logic','output logic','logic']:
+        if Dir not in ['input wire','output wire','wire','reg','input','output','output reg','integer','inout','tri0','tri1','output reg signed','wire signed','signed wire','reg signed','output signed','input logic','output logic','logic','genvar']:
             logs.log_error('add_sig got of %s dir=%s'%(Name,Dir))
             
+        if Dir=='genvar':
+            print 'defined genvar',Name
+            self.genvars[Name]=True
+            return
+            
+
         if Dir=='input wire': Dir='input'
         if Name=='repeat':
             traceback.print_stack()
@@ -156,7 +162,7 @@ class module_class:
 
     def checkDefined(self,List):
         for Net in List:
-            if (not myExtras(Net))and(Net not in self.nets)and(Net not in self.parameters)and(Net[0] not in '0123456789')and(Net not in self.localparams):
+            if (not myExtras(Net))and(Net not in self.nets)and(Net not in self.parameters)and(Net[0] not in '0123456789')and(Net not in self.localparams)and(Net not in self.genvars):
                 logs.log_err('net %s used before defined'%Net)
 
     def duplicate_inst(self,Inst,Inst2):
@@ -366,8 +372,9 @@ class module_class:
             self.dump_initial(Initial,Fout)
         for Generate in self.generates:
             Fout.write('generate\n')
-            Statement = pr_stmt(Generate,'    ',True)
-            Fout.write('%s\n'%Statement)
+            for Item in Generate:
+                Statement = pr_stmt(Item,'    ',True)
+                Fout.write('%s\n'%Statement)
             Fout.write('endgenerate\n')
         for Always in self.alwayses:
             if Always:
@@ -762,7 +769,7 @@ class module_class:
 
 
 OPS =  ['~^','^','=','>=','=>','*','/','<','>','+','-','~','!','&','&&','<=','>>','>>>','<<','||','==','!=','|']
-KEYWORDS = string.split('unsigned if for ifelse edge posedge negedge list case default')
+KEYWORDS = string.split('functioncall named_begin unsigned if for ifelse edge posedge negedge list case default')
 
 def support_set(Sig,Bussed=True):
     Set = support_set__(Sig,Bussed)
@@ -829,7 +836,11 @@ def support_set__(Sig,Bussed):
             return support_set__(Sig[1],Bussed)+support_set__(Sig[2],Bussed)+support_set__(Sig[3],Bussed)
 
         res=[]
-        for X in Sig:
+        if Sig[0]=='named_begin':
+            Sigg = Sig[2:]
+        else:
+            Sigg = Sig[:]
+        for X in Sigg:
             XY = support_set__(X,Bussed)
             res.extend(XY)
         return res
@@ -1127,9 +1138,13 @@ def pr_stmt(List,Pref='',Begin=False):
             More = pr_stmt(List[2],Pref+'     ')
             return Res+More
 
+        Vars = matches.matches(List,'declare ? ? ?')
+        if Vars:
+            if Vars[2]==0: Vars[2]=''
+            return '%s%s %s %s;\n'%(Pref,Vars[0],Vars[1],Vars[2])
 
         if List[0]=='assigns':
-            Vars =  matches.matches(List[1],'= ? ?')
+            Vars =  matches.matches(List[1],'= ? ?',False)
             if Vars:
                 Dst = pr_expr(Vars[0])
                 Src = pr_expr(Vars[1])
@@ -1148,6 +1163,9 @@ def pr_stmt(List,Pref='',Begin=False):
     if List in ['ILIA_FALSE','ILIA_TRUE']: return List                
     if type(List)==types.StringType:
         if List=='empty_begin_end': return ''
+
+    if (type(List)==types.ListType)and(len(List)==1):
+        return pr_stmt(List[0])
 
     if type(List)==types.TupleType:
         return pr_stmt(list(List))
@@ -1251,6 +1269,8 @@ def pr_expr(What):
         return '%s %s'%(What[1],pr_expr(What[2]))
     if What[0]=='subbit':
         return '%s[%s]'%(pr_expr(What[1]),pr_expr(What[2]))
+    if What[0]=='sub_slice':
+        return '%s[%s][%s:%s]'%(pr_expr(What[1]),pr_expr(What[2]),pr_expr(What[3][0]),pr_expr(What[3][1]))
     if What[0]=='sub_slicebit':
         return '%s[%s][%s]'%(pr_expr(What[1]),pr_expr(What[2]),pr_expr(What[3]))
     if What[0]=='subbus':
@@ -1597,6 +1617,6 @@ def is_external_dir(Dir):
 
 
 def myExtras(Token):
-    return Token in ['empty_begin_end','unique_case']
+    return Token in string.split('$high $signed empty_begin_end unique_case')
 
 

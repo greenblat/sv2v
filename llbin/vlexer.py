@@ -54,6 +54,7 @@ def work_line(line,LineNum):
 Queue=[]
 def push_token(Token,kind,LineNum,LinePos):
 #    print 'push_token    %s %s %s %s\n'%(Token,kind,LineNum,LinePos)
+    if Token=='int': Token='integer'
     if (kind=='token')and(Token in ReservedWords):
         kind=Token
     elif (kind=='define')and(Token in ReservedWords):
@@ -72,6 +73,10 @@ def work_out_queue(Queue,Flush=False):
     if (len(Queue)>=2)and(Queue[0][1]=='number')and(Queue[1][1] in ['uhex','ubin','udig']):
         Item = [Queue[0][0]+Queue[1][0],Queue[1][1][1:],Queue[0][2],Queue[0][3]]
         Queue[0]=tuple(Item)
+        Queue.pop(1)
+    if (len(Queue)>=2)and(Queue[1][0]==';')and(Queue[0][0] in ['endcase',';']):
+        Queue.pop(1)
+    if (len(Queue)>=2)and(Queue[0][0]=='integer')and(Queue[1][0] in ['unsigned']):
         Queue.pop(1)
 
     if (len(Queue)>3):
@@ -157,7 +162,7 @@ Table = [
     ,('define',Alphas,Alphas,       'define','add',0)
     ,('define',Alphas,'',           'idle','push','define')
     ,('idle',Letters+'$',Alphas,    'token','add',0)
-    ,('token',Alphas,Alphas,        'token','add',0)
+    ,('token',Alphas+'.',Alphas,    'token','add',0)
     ,('token',Alphas,'',            'idle','push','token')
     ,('idle',Letters,'',             'idle','push','token')
 
@@ -168,6 +173,8 @@ Table = [
     ,('idle',"'",'h',               'uhex1','add',0)
     ,('idle',"'",'d',               'udig1','add',0)
     ,('idle',"'",Digits,            'udig2','add',0)
+    ,('idle',"'",'{',            'crazy1','add',0)
+    ,('crazy1',"{",'',            'idle','push','crazy1')
 
     ,('number',Digits,Digits,       'number','add',0)
     ,('number',Digits,"'",          'sizednumber','add',0)
@@ -209,6 +216,15 @@ Table = [
     ,('ubin2',BinDig,'',              'idle','push','ubin')
 
 
+    ,('idle','*','*',             'starstar','add',0)
+    ,('starstar','*','',          'idle','push','starstar')
+
+    ,('idle','+','+',             'plusplus','add',0)
+    ,('plusplus','+','',             'idle','push','plusplus')
+    ,('idle','>','>',             'shft2','add',0)
+    ,('shft2','>','>',             'shft3','add',0)
+    ,('shft3','>','',             'idle','push','shift3')
+    ,('shft2','>','',             'idle','push','double')
 
     ,('idle',Singles,'',             'idle','push','single')
 
@@ -230,7 +246,7 @@ Table = [
     ,('idle',Doubles,'',       'idle','push','double')
     ,('idle','"','',                  'string','add',0)
     ,('string','"','',                'idle','push','string')
-    ,('string','','',                'string','add',0)
+    ,('string',Alphas+'.','',                'string','add',0)
 ]
 
 ReservedWordsStr = '''
@@ -239,7 +255,7 @@ ReservedWordsStr = '''
     task endtask
     generate endgenerate genvar
     table endtable
-    signed input output inout wire logic enum reg
+    unsigned signed input output inout wire logic enum reg
     unique
     always begin end
     const

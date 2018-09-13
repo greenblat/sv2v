@@ -117,13 +117,28 @@ def add_module_define(Var,Expr):
     Current.add_define(Var,Expr)
 
 def add_generate_item(List):
+    Vars = matches.matches(List,'if ( !Expr ) !GenStatement else !GenStatement')
+    if Vars:
+        Cond = get_expr(Vars[0])
+        Yes = get_statements(Vars[1])
+        No = get_statements(Vars[2])
+        Current.add_generate([['ifelse',Cond,['list']+Yes,['list']+No]])
+        return
+    Vars = matches.matches(List,'if ( !Expr ) !GenStatement')
+    if Vars:
+        Cond = get_expr(Vars[0])
+        Yes = get_statements(Vars[1])
+        Current.add_generate([['if',Cond,['list']+Yes]])
+        return
+
     if len(List)==3:
         Statement = get_statements(List[1])
         if (len(Statement)==1)and(type(Statement)==types.ListType):
             Statement = Statement[0]
+
         Current.add_generate(Statement)
     else:
-        logs.log_err('dont know to deal with generate %s'%(len(List),str(List)))
+        logs.log_err('dont know to deal with generate len=%d %s'%(len(List),str(List)))
         
 
 def add_define_item(List):
@@ -240,6 +255,10 @@ def get_when(Item):
 #    ensure(len(List)==4,(List,Item))
 
 def get_when_items(Item1):
+    if is_terminal(Item1):
+        if Item1[0]=='*':
+            return ['*']
+
     List = DataBase[Item1]
     res = []
     for Item in List:
@@ -288,10 +307,20 @@ def get_soft_assigns(Item1):
             res.extend(More)
         elif Item[0]=='Soft_assign':
             List2 = DataBase[Item]
-            if (len(List2)==3)and(List2[1][0]=='='):
-                Dst = get_expr(List2[0])
-                Src = get_expr(List2[2])
+            done=False
+            Vars = matches.matches(List2,'? = ?')
+            if Vars:
+                Dst = get_expr(Vars[0])
+                Src = get_expr(Vars[1])
                 res.append(['=',Dst,Src])
+                done=True
+            Vars = matches.matches(List2,'? plusplus')
+            if Vars:
+                Dst = get_expr(Vars[0])
+                res.append(['=',Dst,['+',Dst,1]])
+                done=True
+            if not done:
+                logs.log_err('get_soft_assigns got %s'%str(List2))
         else:
             logs.log_err('get_soft_assigns got %s'%str(Item))
     return res
@@ -303,6 +332,11 @@ def get_statement(Item):
     else:
         List = Item
 
+    Vars = matches.matches(List,'!AlwaysKind !Statement')
+    if Vars:
+        Always = get_expr(Vars[0])
+        Stats = get_statement(Vars[1])
+        return [Always,[],Stats]
     Vars = matches.matches(List,'!AlwaysKind !When !Statement')
     if Vars:
         Always = get_expr(Vars[0])
@@ -310,6 +344,14 @@ def get_statement(Item):
         Stats = get_statement(Vars[2])
         return [Always,When,Stats]
         
+    Vars = matches.matches(List,'!IntDir !Tokens_list ;')
+    if Vars:
+        Dir = get_dir(Vars[0])
+        List0 = get_list(Vars[1])
+        res=[]
+        for Net in List0:
+            res.append(('declare',Dir,Net,0))
+        return res 
 
     if len(List)==1:
         if List[0][0]=='Always':
@@ -481,6 +523,10 @@ def get_statement(Item):
         else:
             logs.log_err('CaseKind got %s'%str(List[0]))
 
+    if (type(List)==types.ListType)and(len(List)==1):
+        return get_statement(List[0])
+
+
     logs.log_err(' db0: untreated statement len=%d list="%s"'%(len(List),List),True)
     return []
 
@@ -526,6 +572,13 @@ def get_cases(Item1):
 
 def get_statements(Item1):
     List2 = flattenList(Item1)
+    Vars = matches.matches(List2,'begin !GenStatements end')
+    if Vars:
+        more = get_statements(Vars[0])
+        return more
+
+
+
     res = []
     for Item in List2:
         if len(Item)==2:
@@ -543,8 +596,11 @@ def get_statements(Item1):
                 res.append(x)
             else:
                 logs.log_err('fallOff #0411# %s'%str(Item))
+        elif (len(Item)==3)and(Item[0][0]=='begin')and(Item[2][0]=='end'):
+            x = get_statement(Item[1])
+            res.append(x)
         else:
-            logs.log_err('fallOff #0413#')
+            logs.log_err('fallOff #0413#   %s "%s"'%(Item,List2))
     return res
 
 def get_wid(Item):
@@ -572,6 +628,10 @@ def get_wid(Item):
             if (List[0][0]=='#')and(List[2][0]=='Prms_list'):
                 LL = get_conns(List[2])
                 return LL
+        elif len(List)==3:
+            if (List[0][0]=='[')and(List[2][0]==']'):
+                Num  =get_expr(List[1])
+                return ['-',Num,1],0
         logs.log_err('get_wid got %s %s'%(len(List),List))
     elif len(Item)==1:
         if Item[0][0]=='integer':
@@ -635,7 +695,11 @@ def add_module_stuff():
     for Item in List1:
         if len(Item)==2:
             if (Item[0]=='Mstuff'):
-                add_module_item(DataBase[Item][0])
+                Mstuff = DataBase[Item]
+                if Mstuff[0][0] in ['if','ifelse']:
+                    add_generate_item(Mstuff)
+                else:
+                    add_module_item(DataBase[Item][0])
             elif (Item[0]=='Module_stuffs'):
                 ModuleStuffs.append(DataBase[Item])
 
@@ -1006,6 +1070,15 @@ def add_definition(List):
         Current.add_sig(Name,Dir,('double',Wid0,Wid1))
         return
 
+    Vars = matches.matches(List,'!IntDir !Width ? !BusBit ;',False)
+    if Vars:
+        Dir = get_dir(Vars[0])
+        Wid0 = get_wid(Vars[1])
+        Name = get_expr(Vars[2])
+        Wid1 = get_wid(Vars[3])
+        Current.add_sig(Name,Dir,('double',Wid0,Wid1))
+        return
+
     Vars = matches.matches(List,'!IntDir !Width !Width ? ;',False)
     if Vars:
         Dir = get_dir(Vars[0])
@@ -1088,6 +1161,7 @@ def add_localparam(Ptr):
 
 def flattenList(Ptr):
     Key = Ptr[0]
+    if tuple(Ptr) not in DataBase: return Ptr
     List = DataBase[Ptr]
     if (List[0][0]==Key):
         if len(List)>=3:
@@ -1180,7 +1254,7 @@ def get_expr(Item):
     if len(Item)==2:
         List = DataBase[Item]
         if len(List)==1:
-            if List[0][0]in ['always','always_comb','always_ff']: return 'always'
+            if List[0][0]in ['always','always_comb','always_ff','always_latch']: return 'always'
             if List[0][0]in ['always','always_comb','always_ff']: return List[0][0]
             if List[0][0]=='Expr':
                 return get_expr(List[0])
@@ -1365,7 +1439,7 @@ def isexpr(X):
     return (len(X)==2)and(X[0]=='Expr')
 def is_math_op(X):
     return (len(X)==4)and(X[0] in MathOps)
-MathOps = string.split('~^ !^ ~& !&  ~| !& + - * / ^ % & | && || ! ~ < > << >> >>> == <= >= != === !==')
+MathOps = string.split('** ~^ !^ ~& !&  ~| !& + - * / ^ % & | && || ! ~ < > << >> >>> == <= >= != === !==')
 
 
 def infoOf(Key):

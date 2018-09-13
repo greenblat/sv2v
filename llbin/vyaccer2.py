@@ -108,7 +108,8 @@ def step_machine(state):
     if Verbose: logs.log_info('yacc %s %s %s %s %s'%(Tok,Kind,Lnum,Pos,state))
 #    logs.log_info('    LIST = %s'%str(List))
     for (Act,Param,Next) in List:
-#        logs.log_info('try %s %s %s'%(Act,Param,Next))
+        if Verbose:
+            logs.log_info('try tok=%s %s act=%s param=%s next=%s match=%s'%(Tok,Kind,Act,Param,Next,matches_ok(Tok,Kind,Act,Param)))
         if (Act=='shift'):
             if (matches_ok(Tok,Kind,Act,Param)):
                 Stack.append((Tok,Kind,Lnum,Pos,state))
