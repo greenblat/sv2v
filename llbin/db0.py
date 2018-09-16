@@ -3,13 +3,23 @@
 import os,sys,string,pickle,types
 import logs
 import traceback
-from module_class import module_class
+import module_class as mcl
+# from module_class import pr_stmt
+# from module_class import module_class
 import matches
+import pprint
 
+if os.path.exists('packages_save.py'):
+    sys.path.append('.')
+    import packages_save
 def main():
     load_parsed('.')
     dump_all_verilog('all.v')
     dump_all_all()
+    if PackFile: 
+        PackFile.write('endmodule\n')
+        PackFile.close()
+        Pack2File.close()
 
 Modules = {}
 
@@ -36,7 +46,7 @@ def dump_all_all():
 def load_parsed(Rundir):
     global Global,Modules
     Modules={}
-    Global = module_class('global_module')
+    Global = mcl.module_class('global_module')
     try:
         load_db0('%s/db0.pickle'%Rundir)
         Key = 'Main',1
@@ -82,21 +92,70 @@ def scan1(Key):
         else:
             logs.log_err('exxx %s %s'%(Key,Item))
                 
+PackFile = False
 def add_package(Key):
+    global PackFile,Pack2File
+    if not PackFile:
+        PackFile = open('packages.save','w')
+        Pack2File = open('packages_save.py','w')
+        Pack2File.write('PARAMETERS,TYPEDEFS = {},{} \n')
+        PackFile.write('module packages;\n')
     List = DataBase[Key]
     Vars = matches.matches(List,'package ? ; !Parameters endpackage')
     if Vars:
+        PackFile.write('// from %s\n'%(Vars[0][0]))
         List = get_list(Vars[1])
         for Item in List:
-            logs.log_info('package %s %s'%(Vars[0][0],Item))
+            if Item[0]=='parameter':
+                PackFile.write('parameter %s = %s;\n'%(Item[1],mcl.pr_expr(Item[2])))
+                Pack2File.write('PARAMETERS["%s"] = '%(Item[1]))
+                pprint.pprint(Item[2],Pack2File)
+            elif Item[0]=='typedef':
+                print '>>>>',Item
+                Pack2File.write('TYPEDEFS["%s"] = '%(Item[1]))
+                pprint.pprint(Item[2:],Pack2File)
+                PackFile.write('%s\n'%pr_typedef(Item))
+                if (Item[2][0]=='enum'):
+                    LL = Item[3]
+                    if LL[0][0]=='parameter':
+                        for Prm in LL:
+                            Pack2File.write('PARAMETERS["%s"] = '%(Prm[1]))
+                            pprint.pprint(Prm[2],Pack2File)
+            else:
+                logs.log_error('package got item=%s'%str(Item))
         return
     logs.log_error('package got list=%s'%str(List))
+
+
+def pr_typedef(List):
+    if List[0]!='typedef':
+        logs.log_error('typedef print got "%s" as header, not typedef'%(str(List[0])))
+        return '// err typedef'
+
+    Name = List[1]
+    Str = 'typedef '
+    Vars = matches.matches(List[2],['?','?',['?','?']])
+    if Vars:
+        Str += '%s %s [%s:%s] {\n  '%(Vars[0],Vars[1],Vars[2],Vars[3])
+    else:
+        logs.log_error('typedef of %s got for list2 "%s"'%(Name,List[2]))
+    LL = []
+    for Item in List[3]:
+        Vars = matches.matches(Item,'parameter ? ?')
+        if Vars:
+            X = '%s = %s\n'%(Vars[0],mcl.pr_expr(Vars[1]))
+            LL.append(X) 
+    Lstr = string.join(LL,'  ,')
+    Str += Lstr
+    Str += '\n} %s;'%(Name)
+    return Str
+
 
 def add_module(Key):
     global Current,ModuleStuffs
     List = DataBase[Key]
     Module = List[1][0]
-    Current = module_class(Module)
+    Current = mcl.module_class(Module)
     Modules[Module]=Current
     logs.log_info('addmodule %s (%s)'%(Module,Modules.keys()))
     if len(List)==5:
@@ -241,7 +300,17 @@ def add_header_item(List1):
     else:
         logs.log_err('get_dd_header %s'%str(List1))
     LastWidDir=(Dir,Wid)
+#    print 'wwww',Wid,packages_save.TYPEDEFS
+    if (type(Wid)==types.StringType)and(Wid in packages_save.TYPEDEFS):
+        Wid = getTypeDefWid(Wid)
     Current.add_sig(Name,Dir,Wid)
+
+
+def getTypeDefWid(Wid):
+    Struct = packages_save.TYPEDEFS[Wid]
+    print 'sss',Struct[1],Struct[2]
+    return (5,0)
+
 
 def get_when(Item):
     List = DataBase[Item]
@@ -707,7 +776,7 @@ def get_list(Item):
     Vars = matches.matches(Item,'? = !Expr')
     if Vars:
         Expr = get_expr(Vars[1])
-        return [('param',Vars[0][0],Expr)]
+        return [('parameter',Vars[0][0],Expr)]
     Vars = matches.matches(Item,'typedef enum logic !Width  { !Pairs } ? ;')
     if Vars:
         Wid = get_wid(Vars[0])
@@ -1274,10 +1343,15 @@ def get_names(Ptr):
 
     return res        
 
+def checkInPackages(Item):
+    if Item in packages_save.PARAMETERS:
+        if Item not in Current.localparams:
+            Current.localparams[Item]=packages_save.PARAMETERS[Item]
 
 def get_expr(Item):
     if len(Item)==4:
         if Item[1]=='token':
+            checkInPackages(Item)
             return Item[0]
         if Item[1]=='number':
             return int(Item[0])
@@ -1303,6 +1377,7 @@ def get_expr(Item):
             if List[0][1]=='define':
                 return ['define',List[0][0]]
             if List[0][1]=='token':
+                checkInPackages(List[0][0])
                 return List[0][0]
             if List[0][1]=='string':
                 return List[0][0]
@@ -1319,6 +1394,8 @@ def get_expr(Item):
                 else:
                     return ['dig',32,X[0]]
             if List[0][1]=='bin':    
+                if List[0][0]=="'x":
+                    return ['bin',32,'x']
                 X = string.replace(List[0][0],"'b",' ')
                 X1 = string.split(X)
                 return ['bin',X1[0],X1[1]]

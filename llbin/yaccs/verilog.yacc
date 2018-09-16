@@ -1,6 +1,6 @@
  
-%token module number token endmodule assign  package endpackage typedef
-%token input  output  inout reg  wire  tri0 tri1 signed  unsigned event logic enum const
+%token module number token endmodule assign  package endpackage typedef exttype struct
+%token input  output  inout reg  wire  tri0 tri1 signed  unsigned event logic enum const 
 %token bin hex dig integer real wreal
 %token ubin uhex udig
 %token domino and_and or_or eq3 eq_eq not_eq gr_eq sm_eq
@@ -61,13 +61,17 @@ Header_item :
 
 PackageItem :  Parameter | Typedef ;
 Parameters : Parameters PackageItem | PackageItem ;
-Typedef : typedef enum logic Width '{' Pairs  '}' token ';' ;
+Typename : token | exttype ;
+Typedef : 
+    typedef enum logic Width '{' Pairs  '}' Typename ';' ;
+    | typedef struct '{' SimpleDefs  '}' Typename ';' ;
 Module_stuffs : Mstuff Module_stuffs | ;
 
 
 
 Mstuff :
      Definition
+    | Typedef
     | Assign
     | Instance
     | Always
@@ -83,11 +87,19 @@ Mstuff :
     | newver
     | if '(' Expr ')' GenStatement 
     | if '(' Expr ')' GenStatement else GenStatement 
+    | GenFor_statement
     ;
 
 // Define : backtick_undef token | backtick_define token Expr | backtick_include Expr | backtick_timescale  number token '/' number token  ;
 Define : define string | define token | define token Expr | define  number token '/' number token  ;
 Initial : initial Statement ;
+
+SimpleDef :
+      IntDir token Width ';'
+    | IntDir token ';'
+    ;
+SimpleDefs : SimpleDefs SimpleDef | SimpleDef ;
+
 Definition : 
      ExtDir Tokens_list ';'
     | event Tokens_list ';'
@@ -297,7 +309,7 @@ BusBit : '[' Expr ']' ;
 
 
 PureExt : input | output | inout ;
-IntKind  : reg | wire | logic | integer ;
+IntKind  : reg | wire | logic | integer | exttype ;
 
 ExtDir : PureExt | PureExt IntKind | PureExt signed | PureExt IntKind signed | PureExt unsigned | PureExt IntKind unsigned ;
 

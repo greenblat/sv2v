@@ -372,9 +372,13 @@ class module_class:
             self.dump_initial(Initial,Fout)
         for Generate in self.generates:
             Fout.write('generate\n')
-            for Item in Generate:
-                Statement = pr_stmt(Item,'    ',True)
+            if Generate[0] in ['for','if','ifelse']:
+                Statement = pr_stmt(Generate,'    ',True)
                 Fout.write('%s\n'%Statement)
+            else:
+                for Item in Generate:
+                    Statement = pr_stmt(Item,'    ',True)
+                    Fout.write('%s\n'%Statement)
             Fout.write('endgenerate\n')
         for Always in self.alwayses:
             if Always:

@@ -2,6 +2,8 @@
 
 import string,sys,os,types
 
+Verbose = False
+TYPES = {}
 def main():
     global Ofile
     Fname = sys.argv[1]
@@ -10,11 +12,27 @@ def main():
     except:
         print 'failed to open %s'%Fname
         return
+    if len(sys.argv)>2:
+        HelpFile = open(sys.argv[2])
+        readHelpFile(HelpFile)
+
     Ofile = open('lex.out','w')
     work(File)
 #    print '>>>>',Queue
     work_out_queue(Queue,True)
     Ofile.close()
+
+def readHelpFile(File):
+    while 1:
+        line = File.readline()
+        if line=='': return
+        wrds = string.split(line)
+        if len(wrds)==0:
+            pass
+        elif wrds[0]=='exttype':
+            TYPES[wrds[1]]=True
+        else:
+            print 'readHelpFile doesnt understand "%s"'%(line[:-1])
 
 def work(File):
     LineNum=0
@@ -37,7 +55,8 @@ def work_line(line,LineNum):
     global state,Token
     Len=len(line)
     for i in range(Len-1):
-#        print 'try >>> %s %s %s %s'%(i,line[i],line[i+1],state)
+        if Verbose:
+            print 'try >>> %s %s %s %s'%(i,line[i],line[i+1],state)
         state,action,kind=stepit(i,line[i],line[i+1],state)
         if (action=='skipline'):
             state='idle'
@@ -57,6 +76,8 @@ def push_token(Token,kind,LineNum,LinePos):
     if Token=='int': Token='integer'
     if (kind=='token')and(Token in ReservedWords):
         kind=Token
+    elif (kind=='token')and(Token in TYPES):
+        kind='exttype'
     elif (kind=='define')and(Token in ReservedWords):
         kind='backtick_'+Token[1:]
     Queue.append((Token,kind,LineNum,LinePos))
@@ -79,6 +100,8 @@ def work_out_queue(Queue,Flush=False):
     if (len(Queue)>=2)and(Queue[0][0]=='integer')and(Queue[1][0] in ['unsigned']):
         Queue.pop(1)
 
+    if (len(Queue)>0)and(Queue[0][0]=='packed'):
+        Queue.pop(0)
     if (len(Queue)>3):
         Tup = rework_tup(Queue.pop(0))
         Ofile.write('%s %s %s %s\n'%Tup)
@@ -162,7 +185,7 @@ Table = [
     ,('define',Alphas,Alphas,       'define','add',0)
     ,('define',Alphas,'',           'idle','push','define')
     ,('idle',Letters+'$',Alphas,    'token','add',0)
-    ,('token',Alphas+'.',Alphas,    'token','add',0)
+    ,('token',Alphas+'.',Alphas+'.',    'token','add',0)
     ,('token',Alphas,'',            'idle','push','token')
     ,('idle',Letters,'',             'idle','push','token')
 
@@ -171,6 +194,8 @@ Table = [
     ,('idle',Digits,'',             'idle','push','number')
     ,('idle',"'",'b',               'ubin1','add',0)
     ,('idle',"'",'h',               'uhex1','add',0)
+    ,('idle',"'",'x',               'xbin','add','0')
+    ,('xbin',"x",'',               'idle','push','bin')
     ,('idle',"'",'d',               'udig1','add',0)
     ,('idle',"'",Digits,            'udig2','add',0)
     ,('idle',"'",'{',            'crazy1','add',0)
@@ -252,7 +277,7 @@ Table = [
 ReservedWordsStr = '''
     `define `include `ifdef `ifndef `endif
     module endmodule primitive endprimitive function endfunction
-    package endpackage typedef
+    package endpackage typedef struct
     task endtask
     generate endgenerate genvar
     table endtable
@@ -382,5 +407,3 @@ int specific_ver_double(long token)
 }    
 
 '''
-
-
