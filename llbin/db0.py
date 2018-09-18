@@ -95,26 +95,20 @@ def scan1(Key):
 PackFile = False
 def add_package(Key):
     global PackFile,Pack2File
-    if not PackFile:
-        PackFile = open('packages.save','w')
-        Pack2File = open('packages_save.py','w')
-        Pack2File.write('PARAMETERS,TYPEDEFS = {},{} \n')
-        PackFile.write('module packages;\n')
     List = DataBase[Key]
     Vars = matches.matches(List,'package ? ; !Parameters endpackage')
     if Vars:
-        PackFile.write('// from %s\n'%(Vars[0][0]))
+        Pack = Vars[0][0]
+        Pack2File = open('%s_save.py'%Pack,'w')
+        Pack2File.write('# PARAMETERS,TYPEDEFS = {},{} \n')
         List = get_list(Vars[1])
         for Item in List:
             if Item[0]=='parameter':
-                PackFile.write('parameter %s = %s;\n'%(Item[1],mcl.pr_expr(Item[2])))
                 Pack2File.write('PARAMETERS["%s"] = '%(Item[1]))
                 pprint.pprint(Item[2],Pack2File)
             elif Item[0]=='typedef':
-                print '>>>>',Item
                 Pack2File.write('TYPEDEFS["%s"] = '%(Item[1]))
                 pprint.pprint(Item[2:],Pack2File)
-                PackFile.write('%s\n'%pr_typedef(Item))
                 if (Item[2][0]=='enum'):
                     LL = Item[3]
                     if LL[0][0]=='parameter':
@@ -262,53 +256,31 @@ def add_module_params(List1):
 
 
 def add_module_header(List0):
-    if (len(List0)==4)and(List0[0][0]=='(')and(List0[2][0]==')'):
-        Ptr = List0[1]
-    elif (len(List0)==3)and(List0[0][0]=='(')and(List0[1][0]==')')and(List0[2][0]==';'):
+    Vars = matches.matches(List0,'( !Header_list ) ;')
+    if Vars:
+        List = get_list(DataBase[Vars[0]])
+        for Item in List:
+            if type(Item)==types.TupleType:
+                Vars2 = matches.matches(Item,'extdir ? ? ?')
+                if Vars2:
+                    Dir = Vars2[0]
+                    Wid = Vars2[2]
+                    Current.add_sig(Vars2[1],Dir,Wid) 
+                else:
+                    logs.log_error('add_module_header got %s'%str(Item))
+            elif type(Item)==types.StringType:
+                Current.add_sig(Item,Dir,Wid) 
+            else:                    
+                logs.log_error('add_module_header got(1) %s'%str(Item))
         return
-    else:
-        logs.log_err('ilia!! add_module_header got len=%d "%s"'%(len(List0),List0))
-        return
-    List2 = flattenList(Ptr)
-    for Item in List2:
-        if len(Item)==2:
-            if (Item[0]=='Header_item'):
-                add_header_item(DataBase[Item])
-            elif (Item[0]=='Header_list'):
-                add_module_header(DataBase[Item])
+    logs.log_error('add_module_header got(1) %s'%str(List0))
+    return
 
-
-LastWidDir=False
-def add_header_item(List1):
-    global LastWidDir
-    if (len(List1)==1):
-        Name = List1[0][0]        
-        if LastWidDir:
-            Current.add_sig(Name,LastWidDir[0],LastWidDir[1])
-        return
-    Name = List1[-1][0]
-    Dir = get_dir(List1[0])
-    if (len(List1)==3):
-        Wid = get_wid(List1[1])
-    elif (len(List1)==2):
-        Wid = 0
-    elif (len(List1)==4):
-        Wid0 = get_wid(List1[1])
-        Wid1 = get_wid(List1[3])
-        Wid = ('double',Wid0,Wid1)
-        Name = List1[2][0]
-    else:
-        logs.log_err('get_dd_header %s'%str(List1))
-    LastWidDir=(Dir,Wid)
-#    print 'wwww',Wid,packages_save.TYPEDEFS
-    if (type(Wid)==types.StringType)and(Wid in packages_save.TYPEDEFS):
-        Wid = getTypeDefWid(Wid)
-    Current.add_sig(Name,Dir,Wid)
 
 
 def getTypeDefWid(Wid):
     Struct = packages_save.TYPEDEFS[Wid]
-    print 'sss',Struct[1],Struct[2]
+    logs.log_error('getTypeDefWid name=%s  %s %s'%(Wid,Struct[1],Struct[2]))
     return (5,0)
 
 
@@ -380,7 +352,6 @@ def get_soft_assigns(Item1):
         Src = get_expr(Vars[1])
         res.append(['=',Dst,Src])
         return ('=',Dst,Src)
-        
     for Item in List:
         if Item[0]=='Soft_assigns':
             More = get_soft_assigns(Item)
@@ -388,14 +359,29 @@ def get_soft_assigns(Item1):
         elif Item[0]=='Soft_assign':
             List2 = DataBase[Item]
             done=False
-            Vars = matches.matches(List2,'? = ?')
+            Vars = matches.matches(List2,'integer ? = ?')
             if Vars:
+                Dst = get_expr(Vars[0])
+                Src = get_expr(Vars[1])
+                res.append(['=',Dst,Src])
+                Current.add_sig(Dst,'integer',0)
+                done=True
+            Vars = matches.matches(List2,'genvar ? = ?')
+            if Vars:
+                Dst = get_expr(Vars[0])
+                Src = get_expr(Vars[1])
+                res.append(['=',Dst,Src])
+                Current.add_sig(Dst,'genvar',0)
+                done=True
+
+            Vars = matches.matches(List2,'? = ?')
+            if not done and Vars:
                 Dst = get_expr(Vars[0])
                 Src = get_expr(Vars[1])
                 res.append(['=',Dst,Src])
                 done=True
             Vars = matches.matches(List2,'? plusplus')
-            if Vars:
+            if not done and Vars:
                 Dst = get_expr(Vars[0])
                 res.append(['=',Dst,['+',Dst,1]])
                 done=True
@@ -427,10 +413,34 @@ def get_statement(Item):
     Vars = matches.matches(List,'!IntDir !Tokens_list ;')
     if Vars:
         Dir = get_dir(Vars[0])
+        if Dir=='logic': Dir='wire';
         List0 = get_list(Vars[1])
         res=[]
         for Net in List0:
             res.append(('declare',Dir,Net,0))
+        return res 
+
+    Vars = matches.matches(List,'!IntDir !Width !Width ? ;')
+    if Vars:
+        Dir = get_dir(Vars[0])
+        if Dir=='logic': Dir='wire';
+        Wid0 = get_wid(Vars[1])
+        Wid1 = get_wid(Vars[2])
+        List0 = get_list(Vars[3])
+        res=[]
+        for Net in List0:
+            res.append(('declare',Dir,Net,('packed',Wid0,Wid1)))
+        return res 
+
+    Vars = matches.matches(List,'!IntDir !Width !Tokens_list ;')
+    if Vars:
+        Dir = get_dir(Vars[0])
+        if Dir=='logic': Dir='wire';
+        Wid0 = get_wid(Vars[1])
+        List0 = get_list(Vars[2])
+        res=[]
+        for Net in List0:
+            res.append(('declare',Dir,Net,Wid0))
         return res 
 
     if len(List)==1:
@@ -444,11 +454,15 @@ def get_statement(Item):
             return ['while',Cond,Stmt]
         if List[0][0] in ['For_statement','GenFor_statement']:
             List2 = DataBase[List[0]]
-            Assigns1 = get_soft_assigns(List2[2])
-            Cond = get_expr(List2[4])
-            Assigns2 = get_soft_assigns(List2[6])
-            Stmt = get_statement(List2[8])
-            return ['for',Assigns1,Cond,Assigns2,Stmt]
+            Vars = matches.matches(List2,"for ( ? ; ? ; ? ) ?")
+            if Vars:
+                Assigns1 = get_soft_assigns(Vars[0])
+                Cond = get_expr(Vars[1])
+                Assigns2 = get_soft_assigns(Vars[2])
+                Stmt = get_statement(Vars[3])
+                return ['for',Assigns1,Cond,Assigns2,Stmt]
+            logs.log_error('for failed in "%s"'%str(List2))
+            return []
         if List[0][0] in ['Instance']:
             List = DataBase[List[0]]
             return instance_statement(List)
@@ -657,6 +671,10 @@ def get_statements(Item1):
         more = get_statements(Vars[0])
         return more
 
+    Vars = matches.matches(List2,'begin : ? !GenStatements end')
+    if Vars:
+        more = get_statements(Vars[1])
+        return more
 
 
     res = []
@@ -674,6 +692,15 @@ def get_statements(Item1):
             elif (Item[0]=='GenStatement'):
                 x = get_statement(Item)
                 res.append(x)
+            elif (Item[0]=='Assign'):
+                LL = DataBase[Item]
+                Vars = matches.matches(LL,'assign ? = ? ;')
+                if Vars:
+                    Dst = get_expr(Vars[0])
+                    Src = get_expr(Vars[1])
+                    res.append(['assigns',('=',Dst,Src)])
+                else:
+                    logs.log_error('Assign %s'%str(DataBase[Item]))
             else:
                 logs.log_err('fallOff #0411# %s'%str(Item))
         elif (len(Item)==3)and(Item[0][0]=='begin')and(Item[2][0]=='end'):
@@ -763,6 +790,12 @@ def get_list(Item):
         More = get_list(Vars[1])
         return [Vars[0][0]]+More
 
+    Vars = matches.matches(Item,'!Header_list , !Header_item')
+    if Vars:
+        More = get_list(Vars[0])
+        This = get_list(Vars[1])
+        return More+This
+
     Vars = matches.matches(Item,'!Parameters !PackageItem')
     if Vars:
         More = get_list(Vars[0])
@@ -781,17 +814,64 @@ def get_list(Item):
     if Vars:
         Wid = get_wid(Vars[0])
         Pairs = get_list(Vars[1])
-        Name = Vars[2][0]
+        Name = get_expr(Vars[2])
+
         return [('typedef',Name,['enum','logic',Wid],Pairs)]
+
     Vars = matches.matches(Item,'!Pairs , !Pair')
     if Vars:
         Pairs = get_list(Vars[0])
         Pair  = get_list(Vars[1])
         return Pairs+Pair
+    Vars = matches.matches(Item,'!SimpleDefs !SimpleDef')
+    if Vars:
+        Pairs = get_list(Vars[0])
+        Pair  = get_list(Vars[1])
+        return Pairs+Pair
+    Vars = matches.matches(Item,'!IntDir ? ;')
+    if Vars:
+        Dir = get_dir(Vars[0])
+        Name = get_expr(Vars[1])
+        return [(Dir,Name)]
+
+    if Item[0][0]=='ExtDir':
+        return [getExtDir(Item)]
 
     logs.log_err('get_list %s'%str(Item))
     return []
 
+
+def getExtDir(Item):
+    Vars = matches.matches(Item,'!ExtDir ?')
+    if Vars:
+        Dir = get_dir(Vars[0])
+        Name = get_expr(Vars[1])
+        return ('extdir',Dir,Name,0)
+    Vars = matches.matches(Item,'!ExtDir !Width ?')
+    if Vars:
+        Dir = get_dir(Vars[0])
+        Wid = get_wid(Vars[1])
+        Name = get_expr(Vars[2])
+        return ('extdir',Dir,Name,Wid)
+
+    Vars = matches.matches(Item,'!ExtDir !Width !Width ?')
+    if Vars:
+        Dir = get_dir(Vars[0])
+        Wid0 = get_wid(Vars[1])
+        Wid1 = get_wid(Vars[2])
+        Name = get_expr(Vars[3])
+        return ('extdir',Dir,Name,('packed',Wid0,Wid1))
+
+    Vars = matches.matches(Item,'!ExtDir !Width ? !Width')
+    if Vars:
+        Dir = get_dir(Vars[0])
+        Wid0 = get_wid(Vars[1])
+        Wid1 = get_wid(Vars[3])
+        Name = get_expr(Vars[2])
+        return ('extdir',Dir,Name,('double',Wid0,Wid1))
+
+    logs.log_err('getExtDir got "%s"'%str(Item))
+    return []
 
 
 def add_module_stuff():
@@ -834,6 +914,8 @@ def add_module_item(Item):
             add_define_item(List)
         elif Item[0]=='Generate':
             add_generate_item(List)
+        elif Item[0]=='Typedef':
+            add_typedef_item(List)
         else:
             logs.log_err('untreated(0) "%s" "%s"'%(Item,List))
     elif (len(Item)==4)and(Item[1]=='pragma'):
@@ -842,6 +924,16 @@ def add_module_item(Item):
         add_newver(Item)
     else:
         logs.log_err('untreated(1) len=%d "%s"'%(len(Item),str(Item)))
+
+def add_typedef_item(List):
+    Vars = matches.matches(List,'typedef struct { ? } ? ;')
+    if Vars:
+        Name = get_expr(Vars[1])
+        LL = get_list(Vars[0])
+        packages_save.TYPEDEFS[Name]=('struct',LL)
+        return
+
+    logs.log_error('add_typedef_item got "%s"'%str(List))
 
 
 def add_pragma(Item):
@@ -1171,11 +1263,24 @@ def add_definition(List):
     if Vars:
         Dir = get_dir(Vars[0])
         Wid0 = get_wid(Vars[1])
-        Name = get_expr(Vars[2])
         Wid1 = get_wid(Vars[3])
+        Name = get_expr(Vars[2])
         Current.add_sig(Name,Dir,('double',Wid0,Wid1))
         return
 
+    Vars = matches.matches(List,'!IntDir !Width !Width ? ;',False)
+   
+    if Vars:
+        Dir = get_dir(Vars[0])
+        Wid0 = get_wid(Vars[1])
+        Wid1 = get_wid(Vars[2])
+        Name = get_list(Vars[3])
+        if type(Name)==types.ListType:
+            for Net in Name:
+                Current.add_sig(Net,Dir,('packed',Wid0,Wid1))
+        else:
+            Current.add_sig(Name,Dir,('packed',Wid0,Wid1))
+        return
     Vars = matches.matches(List,'!IntDir !Width ? !BusBit ;',False)
     if Vars:
         Dir = get_dir(Vars[0])
@@ -1191,7 +1296,7 @@ def add_definition(List):
         Wid0 = get_wid(Vars[1])
         Wid1 = get_wid(Vars[2])
         Name = get_expr(Vars[3])
-        Current.add_sig(Name,Dir,('double',Wid0,Wid1))
+        Current.add_sig(Name,Dir,('packed',Wid0,Wid1))
         return
 
     Vars = matches.matches(List,'const logic !Width !Width ? = { !Exprs } ;',False)
@@ -1200,7 +1305,7 @@ def add_definition(List):
         Wid1 = get_wid(Vars[1])
         Exprs = get_expr_list(Vars[3])
         Name = Vars[2];
-        Current.add_sig(Name,'wire',('double',Wid1,Wid0))
+        Current.add_sig(Name,'wire',('packed',Wid1,Wid0))
         for ind,Val in enumerate(Exprs):
             Current.add_hard_assign(['subbit',Name,ind],Val)
         return
@@ -1338,10 +1443,10 @@ def get_names(Ptr):
                     res.append(Item[0])
         List=More[:]
         More=[]
-
-
-
     return res        
+
+
+
 
 def checkInPackages(Item):
     if Item in packages_save.PARAMETERS:
@@ -1371,6 +1476,8 @@ def get_expr(Item):
                 return get_expr(List[0])
             if List[0][1]=='floating':
                 return float(List[0][0])
+            if List[0][1]=='exttype':
+                return List[0][0]
 
             if List[0][1]=='number':
                 return int(List[0][0])
@@ -1413,6 +1520,15 @@ def get_expr(Item):
                 List2 = DataBase[List[0]]
                 Dotted = get_dotted_items(List2)
                 return ('dotted',Dotted)
+            if List[0][0]=='Crazy':    
+                XX  = DataBase[List[0]]
+                Vars = matches.matches(XX,"crazy1 default : ? }")
+                if Vars:
+                    Expr = get_expr(Vars[0])
+                    return Expr
+                
+                logs.log_error('crazy got "%s"'%(str(XX)))
+                return 0
 
         elif len(List)==2:
             if List[0][0]=='#':
@@ -1476,7 +1592,9 @@ def get_expr(Item):
                 Lo = get_expr(List[3])
                 return ['width',Hi,Lo]
 
+
         logs.log_err('bad get_expr %s %s %s'%(Item,len(List),List))
+        traceback.print_stack(None,None,logs.Flog)
         return 0
     if len(Item)==4:
         if (Item[1]=='floating'):

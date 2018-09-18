@@ -25,7 +25,7 @@ def matches(List,Seq,Verbose=False):
             Vars.append(List[ind])
         elif Iseq[0] == '!': 
             if (Iseq[1:]!=List[ind][0]): 
-                if Verbose: logs.log_info('matches stopped at iseq=%s who=%s '%(Iseq,List[ind]))
+                if Verbose: logs.log_info('matches stopped(0) at iseq=%s who=%s '%(Iseq,List[ind]))
                 return False
             Vars.append(List[ind])
         elif Iseq == '$': 
@@ -33,11 +33,11 @@ def matches(List,Seq,Verbose=False):
             if Who in KNOWNFUNCTIONS:
                 Vars.append(List[ind])
             else:
-                if Verbose: logs.log_info('matches stopped at iseq=%s who=%s '%(Iseq,Who))
+                if Verbose: logs.log_info('matches stopped(1) at iseq=%s who=%s '%(Iseq,Who))
                 return False
 
         elif (Iseq!=Litem):
-            if Verbose: logs.log_info('matches stopped at iseq=%s who=%s '%(Iseq,List[ind]))
+            if Verbose: logs.log_info('matches stopped(2) at iseq=|%s| who=|%s| %s '%(Iseq,Litem,List[ind]))
             return False
     if Vars==[]: return True 
     return Vars 

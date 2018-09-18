@@ -22,6 +22,15 @@ def main():
     work_out_queue(Queue,True)
     Ofile.close()
 
+
+def run(File,Oname):
+    global Ofile
+    Ofile = open('lex.out','w')
+    work(File)
+    work_out_queue(Queue,True)
+    Ofile.close()
+
+
 def readHelpFile(File):
     while 1:
         line = File.readline()
@@ -200,6 +209,8 @@ Table = [
     ,('idle',"'",Digits,            'udig2','add',0)
     ,('idle',"'",'{',            'crazy1','add',0)
     ,('crazy1',"{",'',            'idle','push','crazy1')
+    ,('idle',"'",'(',            'crazy2','add',0)
+    ,('crazy2',"(",'',            'idle','push','crazy2')
 
     ,('number',Digits,Digits,       'number','add',0)
     ,('number',Digits,"'",          'sizednumber','add',0)

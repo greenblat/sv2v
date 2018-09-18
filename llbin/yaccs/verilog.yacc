@@ -19,7 +19,7 @@
 %token force release
 %token xnor nand nor repeat
 %token supply0 supply1
-%token newver plusplus starstar shift3 crazy1
+%token newver plusplus starstar shift3 crazy1 crazy2
 
 %right '?' ':' 
 %left and_and
@@ -197,8 +197,15 @@ Instance :
 // | token '(' Exprs ')' ';' 
 
 
-Crazy : crazy1 default ':' Consts '}' ;
+Crazy : 
+      crazy1 default ':' Consts '}'
+    | crazy1 Pairs2 '}'
+    ;
 
+Pairs2 : Pairs2 ',' Pair2 | Pair2 ;
+Pair2 : token ':' Expr | token ':' Crazy3 ;
+
+Crazy3 :  exttype crazy2 Expr ')' ;
 
 Conns_list : Conns_list ',' Connection | Connection ;
 Connection : '.' '*' | '.' token '(' Expr ')' | '.' token '(' ')' ;
