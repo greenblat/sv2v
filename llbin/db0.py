@@ -264,8 +264,15 @@ def add_module_header(List0):
                 Vars2 = matches.matches(Item,'extdir ? ? ?')
                 if Vars2:
                     Dir = Vars2[0]
-                    Wid = Vars2[2]
-                    Current.add_sig(Vars2[1],Dir,Wid) 
+                    Net = Vars2[1]
+                    if notUsualDir(Dir):
+                        Usual,Type = notUsualDir(Dir)
+                        Wid = getTypeDefWid(Type)
+                        Current.add_sig(Net,Usual,Wid) 
+                        record_original_typedef(Net,Type)
+                    else:
+                        Wid = Vars2[2]
+                        Current.add_sig(Net,Dir,Wid) 
                 else:
                     logs.log_error('add_module_header got %s'%str(Item))
             elif type(Item)==types.StringType:
@@ -276,12 +283,50 @@ def add_module_header(List0):
     logs.log_error('add_module_header got(1) %s'%str(List0))
     return
 
+OriginalTypeDefs={}
+def record_original_typedef(Net,Type):
+    OriginalTypeDefs[(Net,Current.Module)] = Type
+    
+
+def getStructFields(Kind):
+    if Kind in packages_save.TYPEDEFS:
+        Struct = packages_save.TYPEDEFS[Kind]
+        if Struct[0]=='struct':
+            res = {}
+            Tot = 0
+            Str = Struct[1][:]
+            Str.reverse()
+            for Item in Str:
+                Wid = getTypeDefWid(Item[0])
+                Name = Item[1]
+                res[Name] = (Wid+Tot-1,Tot)
+                Tot += Wid
+            return Tot,res
+    logs.log_error('getStructFields name=%s '%(str(Kind)))
+    return 0,{}
+
+def getTypeDefWid(Kind):
+    if Kind in packages_save.TYPEDEFS:
+        Struct = packages_save.TYPEDEFS[Kind]
+        if Struct[0]=='struct':
+            Tot = 0
+            for Item in Struct[1]:
+                Wid = getTypeDefWid(Item[0])
+                Tot += Wid
+            return Tot 
+        Vars = matches.matches(Struct[0],'enum logic ?')
+        if Vars:
+            H,L = Vars[0]
+            return H-L+1
+            
+    
+    if Kind=='logic': return 1
 
 
-def getTypeDefWid(Wid):
-    Struct = packages_save.TYPEDEFS[Wid]
-    logs.log_error('getTypeDefWid name=%s  %s %s'%(Wid,Struct[1],Struct[2]))
-    return (5,0)
+
+
+    logs.log_error('getTypeDefWid name=%s '%(str(Kind)))
+    return 5
 
 
 def get_when(Item):
@@ -795,6 +840,15 @@ def get_list(Item):
         More = get_list(Vars[0])
         This = get_list(Vars[1])
         return More+This
+    Vars = matches.matches(Item,'!Pairs2 , !Pair2')
+    if Vars:
+        More0 = DataBase[Vars[0]]
+        if len(More0)==3:
+            More = get_list(Vars[0])
+        else:
+            More = [get_pair(Vars[0])]
+        This = get_pair(Vars[1])
+        return More+[This]
 
     Vars = matches.matches(Item,'!Parameters !PackageItem')
     if Vars:
@@ -838,6 +892,7 @@ def get_list(Item):
         return [getExtDir(Item)]
 
     logs.log_err('get_list %s'%str(Item))
+    logs.pStack()
     return []
 
 
@@ -873,6 +928,17 @@ def getExtDir(Item):
     logs.log_err('getExtDir got "%s"'%str(Item))
     return []
 
+def get_pair(Item):
+    if len(Item)==1: return get_pair(Item[0])
+    if in_db(Item):
+        return get_pair(DataBase[Item])
+    Vars = matches.matches(Item,'? : ?')
+    if Vars:
+        Var = get_expr(Vars[0])
+        Expr = get_expr(Vars[1])
+        return (Var,Expr)
+    logs.log_error('get_pair %s failed'%str(Item))
+    return False
 
 def add_module_stuff():
     List1 = ModuleStuffs.pop(0)
@@ -1256,8 +1322,16 @@ def add_definition(List):
     if Vars:
         Dir = get_dir(Vars[0])
         List0 = get_list(Vars[1])
-        for Net in List0:
-            Current.add_sig(Net,Dir,0)
+        if notUsualDir(Dir):
+            Usual,Type = notUsualDir(Dir)
+            Wid = getTypeDefWid(Type)
+            
+            for Net in List0:
+                record_original_typedef(Net,Type)
+                Current.add_sig(Net,Usual,Wid)
+        else:            
+            for Net in List0:
+                Current.add_sig(Net,Dir,0)
         return
     Vars = matches.matches(List,'!IntDir !Width ? !Width ;',False)
     if Vars:
@@ -1453,9 +1527,24 @@ def checkInPackages(Item):
         if Item not in Current.localparams:
             Current.localparams[Item]=packages_save.PARAMETERS[Item]
 
+def findField(Item):
+    wrds = string.split(Item,'.')
+    Net = wrds[0]
+    Base = OriginalTypeDefs[(Net,Current.Module)]
+    Field = wrds[1]
+    Tot,Fields = getStructFields(Base)
+    if Field in Fields:
+        return ['subbus',Net,[Field[0],Field[1]]]
+
+
+    logs.log_info('findField failed on net="%s"'%str(Base))
+    return 'findField'
+
 def get_expr(Item):
     if len(Item)==4:
         if Item[1]=='token':
+            if '.' in Item[0]:
+                return findField(Item[1])
             checkInPackages(Item)
             return Item[0]
         if Item[1]=='number':
@@ -1469,6 +1558,14 @@ def get_expr(Item):
             return '*'
     if len(Item)==2:
         List = DataBase[Item]
+        if Item[0]=='Crazy3':
+            Vars = matches.matches(List,'? !crazy2 ? )',False)
+            if Vars:
+                Type = Vars[0][0]
+                Expr = get_expr(Vars[2])
+                return Expr
+
+
         if len(List)==1:
             if List[0][0]in ['always','always_comb','always_ff','always_latch']: return 'always'
             if List[0][0]in ['always','always_comb','always_ff']: return List[0][0]
@@ -1484,6 +1581,8 @@ def get_expr(Item):
             if List[0][1]=='define':
                 return ['define',List[0][0]]
             if List[0][1]=='token':
+                if '.' in List[0][0]:
+                    return findField(List[0][0])
                 checkInPackages(List[0][0])
                 return List[0][0]
             if List[0][1]=='string':
@@ -1526,6 +1625,14 @@ def get_expr(Item):
                 if Vars:
                     Expr = get_expr(Vars[0])
                     return Expr
+                Vars = matches.matches(XX,"crazy1 !Pairs2 }")
+                if Vars:
+                    Pairs = get_list(Vars[0])
+                    res = ['curly']
+                    for A,B in Pairs:
+                        res.append(B)
+
+                    return res
                 
                 logs.log_error('crazy got "%s"'%(str(XX)))
                 return 0
@@ -1681,8 +1788,21 @@ def infoOf(Key):
             return 'line=%s pos=%s'%(X[2],X[3])
     return 'location unknown'
     
+usualDirs = string.split('input output inout wire reg logic signed unsigned genvar')
+def notUsualDir(Dir):
+    if Dir in  usualDirs: return False
+    ww = string.split(Dir)
+    goods = []
+    for word in ww:
+        if word not in usualDirs: 
+            if goods==[]: goods=['wire']
+            return string.join(goods,' '),word
+        else:
+            goods.append(word)
+            
+    return False
 
-    
+
 def picklize():
     Fout = open('modules.pickle','w')
     pickle.dump(Modules,Fout)

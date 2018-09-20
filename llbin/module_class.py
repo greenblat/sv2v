@@ -68,6 +68,12 @@ class module_class:
     def add_net(self,Name,Dir,Wid):
         self.add_sig(Name,Dir,Wid)
     def add_sig(self,Name,Dir,Wid):
+
+#        if Name=='i':
+#            logs.log_info('iiiiiiii')
+#            logs.pStack()
+
+
         if (type(Name)==types.StringType)and('[' in Name):
             Name = Name[:Name.index('[')]
         if Name=='':
@@ -77,6 +83,7 @@ class module_class:
             return Name
         if Dir not in ['input wire','output wire','wire','reg','input','output','output reg','integer','inout','tri0','tri1','output reg signed','wire signed','signed wire','reg signed','output signed','input logic','output logic','logic','genvar']:
             logs.log_error('add_sig got of %s dir=%s'%(Name,Dir))
+            logs.pStack()
             
         if Dir=='genvar':
             self.genvars[Name]=True
@@ -89,9 +96,6 @@ class module_class:
             sys.exit()
             return
 
-#        if self.Module == 'freak_top':
-#            print 'adding %s %s %s'%(Name,Dir,Wid)
-#            traceback.print_stack()
 
         if type(Name)==types.ListType:
             logs.log_error('add_sig got listName %s'%str(Name))
@@ -136,7 +140,7 @@ class module_class:
 
         else:
             logs.log_err('add_sig %s (%s) got width %s'%(Name,Dir,Wid))
-            traceback.print_stack(None,None,logs.Flog)
+            logs.pStack()
 
 
 
@@ -163,6 +167,7 @@ class module_class:
         for Net in List:
             if (not myExtras(Net))and(Net not in self.nets)and(Net not in self.parameters)and(Net[0] not in '0123456789')and(Net not in self.localparams)and(Net not in self.genvars):
                 logs.log_err('net %s used before defined'%Net)
+                logs.pStack()
 
     def duplicate_inst(self,Inst,Inst2):
         Obj = self.insts[Inst]
@@ -382,7 +387,7 @@ class module_class:
             self.dump_initial(Initial,Fout)
         for Generate in self.generates:
             Fout.write('generate\n')
-            if Generate[0] in ['for','if','ifelse']:
+            if Generate[0] in ['for','if','ifelse','always','assigns','declares']:
                 Statement = pr_stmt(Generate,'    ',True)
                 Fout.write('%s\n'%Statement)
             else:
@@ -492,7 +497,7 @@ class module_class:
             if Sig1!=Net:
                 self.check_net_def(Sig1)
                 return
-            if Net not in self.nets:
+            if (Net not in self.nets)and(Net not in self.parameters)and(Net not in self.localparams)and(Net not in self.genvars):
                 self.add_sig(Net,'wire',0)
             return
         if type(Net)==types.TupleType:
@@ -1170,8 +1175,10 @@ def pr_stmt(List,Pref='',Begin=False):
             if Vars[2]==0: Vars[2]=''
             elif (Vars[2][0]=='double'):
                 return '%s%s %s %s %s;\n'%(Pref,Vars[0],pr_wid(Vars[2][1]),Vars[1],pr_wid(Vars[2][2]))
+            elif (Vars[2][0]=='packed'):
+                return '%s%s %s %s;\n'%(Pref,Vars[0],pr_wid(Vars[2]),Vars[1])
             else:
-                return '%s%s %s %s;\n'%(Pref,Vars[0],Vars[1],pr_wid(Vars[2]))
+                return '%s%s %s %s;\n'%(Pref,Vars[0],pr_wid(Vars[2]),Vars[1])
 
         if List[0]=='declare':
             Vars = matches.matches(List,'declare wire ? ?')

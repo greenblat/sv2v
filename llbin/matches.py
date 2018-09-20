@@ -24,7 +24,7 @@ def matches(List,Seq,Verbose=False):
         if Iseq == '?': 
             Vars.append(List[ind])
         elif Iseq[0] == '!': 
-            if (Iseq[1:]!=List[ind][0]): 
+            if (Iseq[1:]!=List[ind][0])and(Iseq[1:]!=List[ind][1]): 
                 if Verbose: logs.log_info('matches stopped(0) at iseq=%s who=%s '%(Iseq,List[ind]))
                 return False
             Vars.append(List[ind])
