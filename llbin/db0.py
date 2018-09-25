@@ -12,6 +12,8 @@ import pprint
 if os.path.exists('packages_save.py'):
     sys.path.append('.')
     import packages_save
+else:
+    packages_save = False
 def main():
     load_parsed('.')
     dump_all_verilog('all.v')
@@ -300,6 +302,7 @@ def getStructFields(Kind):
                 Wid = getTypeDefWid(Item[0])
                 Name = Item[1]
                 res[Name] = (Wid+Tot-1,Tot)
+                print '>>>>>>>>',Name,res[Name]
                 Tot += Wid
             return Tot,res
     logs.log_error('getStructFields name=%s '%(str(Kind)))
@@ -321,6 +324,7 @@ def getTypeDefWid(Kind):
             
     
     if Kind=='logic': return 1
+    if Kind=='integer': return 32
 
 
 
@@ -488,6 +492,14 @@ def get_statement(Item):
             res.append(('declare',Dir,Net,Wid0))
         return res 
 
+    Vars = matches.matches(List,"for ( ? ; ? ; ? ) ?")
+    if Vars:
+        Assigns1 = get_soft_assigns(Vars[0])
+        Cond = get_expr(Vars[1])
+        Assigns2 = get_soft_assigns(Vars[2])
+        Stmt = get_statement(Vars[3])
+        return ['for',Assigns1,Cond,Assigns2,Stmt]
+
     if len(List)==1:
         if List[0][0]=='Always':
             LL = DataBase[List[0]]
@@ -497,17 +509,6 @@ def get_statement(Item):
             Cond = get_expr(List2[2])
             Stmt = get_statement(List2[4])
             return ['while',Cond,Stmt]
-        if List[0][0] in ['For_statement','GenFor_statement']:
-            List2 = DataBase[List[0]]
-            Vars = matches.matches(List2,"for ( ? ; ? ; ? ) ?")
-            if Vars:
-                Assigns1 = get_soft_assigns(Vars[0])
-                Cond = get_expr(Vars[1])
-                Assigns2 = get_soft_assigns(Vars[2])
-                Stmt = get_statement(Vars[3])
-                return ['for',Assigns1,Cond,Assigns2,Stmt]
-            logs.log_error('for failed in "%s"'%str(List2))
-            return []
         if List[0][0] in ['Instance']:
             List = DataBase[List[0]]
             return instance_statement(List)
@@ -982,6 +983,9 @@ def add_module_item(Item):
             add_generate_item(List)
         elif Item[0]=='Typedef':
             add_typedef_item(List)
+        elif Item[0]=='GenFor_statement':
+            X = get_statement(Item)
+            Current.add_generate(X)
         else:
             logs.log_err('untreated(0) "%s" "%s"'%(Item,List))
     elif (len(Item)==4)and(Item[1]=='pragma'):
@@ -1309,6 +1313,27 @@ def add_definition(List):
             
         return
 
+    Vars = matches.matches(List,'!IntDir !Width !Tokens_list = !Expr ;',False)
+    if Vars:
+        Dir = get_dir(Vars[0])
+        Wid = get_wid(Vars[1])
+        List0 = get_list(Vars[2])
+        Expr = get_expr(Vars[3])
+        for Net in List0:
+            Current.add_sig(Net,Dir,Wid)
+            Current.add_hard_assign(Net,Expr)
+        return
+
+    Vars = matches.matches(List,'!IntDir !Tokens_list = !Expr ;',False)
+    if Vars:
+        Dir = get_dir(Vars[0])
+        List0 = get_list(Vars[1])
+        Expr = get_expr(Vars[2])
+        for Net in List0:
+            Current.add_sig(Net,Dir,0)
+            Current.add_hard_assign(Net,Expr)
+        return
+
     Vars = matches.matches(List,'!IntDir !Width !Tokens_list ;',False)
     if Vars:
         Dir = get_dir(Vars[0])
@@ -1523,6 +1548,7 @@ def get_names(Ptr):
 
 
 def checkInPackages(Item):
+    if not packages_save: return
     if Item in packages_save.PARAMETERS:
         if Item not in Current.localparams:
             Current.localparams[Item]=packages_save.PARAMETERS[Item]
@@ -1534,7 +1560,8 @@ def findField(Item):
     Field = wrds[1]
     Tot,Fields = getStructFields(Base)
     if Field in Fields:
-        return ['subbus',Net,[Field[0],Field[1]]]
+        
+        return ['subbus',Net,Fields[Field]]
 
 
     logs.log_info('findField failed on net="%s"'%str(Base))

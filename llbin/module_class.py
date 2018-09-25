@@ -798,7 +798,7 @@ def dump_always(Always,Fout):
     return ''
 
 OPS =  ['~^','^','=','>=','=>','*','/','<','>','+','-','~','!','&','&&','<=','>>','>>>','<<','||','==','!=','|']
-KEYWORDS = string.split('sub_slice sub_slicebit taskcall functioncall named_begin unsigned if for ifelse edge posedge negedge list case default')
+KEYWORDS = string.split('$unsigned $signed sub_slice sub_slicebit taskcall functioncall named_begin unsigned if for ifelse edge posedge negedge list case default')
 
 def support_set(Sig,Bussed=True):
     Set = support_set__(Sig,Bussed)
