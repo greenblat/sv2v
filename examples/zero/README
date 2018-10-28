@@ -1,0 +1,25 @@
+
+
+zero_svrtl is copy of files in the original zero riscv directory.
+there are couple of manual changes:
+1. i dont like "for (int ii=0"  where variables are defined on the spot. 
+   regular verilog doesnt like it. it probably has no speed advantage.
+   so i declare all "temporary" variables once and module level.
+
+2. what was that?
+
+
+to try it out:
+
+1.  llbin/make_zero.py   : this script runs the translation process.
+    it fills  rtl_zero directory with files.
+
+2. next cd to tb directory.
+    ./compileAndSimulate  is the script.
+
+    it uses python-verilog connectio.  You can get it from my git also.
+    Or You can use your own testbench.
+
+good luck.
+
+

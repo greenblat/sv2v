@@ -1,0 +1,38 @@
+mmmmmmmmmmmmmmmmmmmmmmmmmmm 
+reading file33.v file
+info: yacc step0
+info: yacc step1
+info: exit state 0 1
+info: yacc step2
+info: yacc step3
+info: addmodule riscv_alu (['riscv_alu'])
+info: addmodule alu_ff (['riscv_alu', 'alu_ff'])
+info: addmodule alu_popcnt (['riscv_alu', 'alu_popcnt', 'alu_ff'])
+locals ['riscv_alu', 'alu_popcnt', 'alu_ff']
+0: ERROR!! in none: net not defined for declareRegs "k"
+1: ERROR!! in none: net not defined for declareRegs "m"
+2: ERROR!! in none: net not defined for declareRegs "j"
+3: ERROR!! in none: net not defined for declareRegs "i"
+4: ERROR!! in none: partial genvar not recognized
+5: ERROR!! in none: partial ('declare', 'wire', 'fclass_exponent', (7, 0)) not recognized
+6: ERROR!! in none: partial ('declare', 'wire', 'fclass_mantiassa', (22, 0)) not recognized
+7: ERROR!! in none: partial ('declare', 'wire', 'fclass_ninf', 0) not recognized
+8: ERROR!! in none: partial ('declare', 'wire', 'fclass_pinf', 0) not recognized
+9: ERROR!! in none: partial ('declare', 'wire', 'fclass_normal', 0) not recognized
+10: ERROR!! in none: partial ('declare', 'wire', 'fclass_subnormal', 0) not recognized
+11: ERROR!! in none: partial ('declare', 'wire', 'fclass_nzero', 0) not recognized
+12: ERROR!! in none: partial ('declare', 'wire', 'fclass_pzero', 0) not recognized
+13: ERROR!! in none: partial ('declare', 'wire', 'fclass_is_negative', 0) not recognized
+14: ERROR!! in none: partial ('declare', 'wire', 'fclass_snan_a', 0) not recognized
+15: ERROR!! in none: partial ('declare', 'wire', 'fclass_qnan_a', 0) not recognized
+16: ERROR!! in none: partial ('declare', 'wire', 'fclass_snan_b', 0) not recognized
+17: ERROR!! in none: partial ('declare', 'wire', 'fclass_qnan_b', 0) not recognized
+18: ERROR!! in none: partial ('declare', 'wire', 'div_signed', 0) not recognized
+19: ERROR!! in none: partial ('declare', 'wire', 'div_op_a_signed', 0) not recognized
+20: ERROR!! in none: partial ('declare', 'wire', 'div_op_b_signed', 0) not recognized
+21: ERROR!! in none: partial ('declare', 'wire', 'div_shift_int', (5, 0)) not recognized
+22: ERROR!! in none: partial instance not recognized
+23: ERROR!! in none: net not defined for declareRegs "l"
+24: ERROR!! in none: net not defined for declareRegs "n"
+25: ERROR!! in none: net not defined for declareRegs "p"
+26: ERROR!! in none: net not defined for declareRegs "level"

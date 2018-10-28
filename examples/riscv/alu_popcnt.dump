@@ -1,0 +1,13 @@
+module alu_popcnt
+    net in_i ('input', (31, 0))
+    net result_o ('output', (5, 0))
+    net cnt_l4 ('wire', ('packed', (1, 0), (4, 0)))
+    net cnt_l2 ('wire', ('packed', (7, 0), (2, 0)))
+    net cnt_l3 ('wire', ('packed', (3, 0), (3, 0)))
+    net cnt_l1 ('wire', ('packed', (15, 0), (1, 0)))
+    assign ('result_o', ['+', ['curly', ['bin', '1', '0'], ['subbit', 'cnt_l4', 0]], ['curly', ['bin', '1', '0'], ['subbit', 'cnt_l4', 1]]], '', '')
+    generate ['for', ['list', ['=', 'l', 0]], ['<', 'l', 16], ['list', ['=', 'l', ['+', 'l', 1]]], ['list', ['assigns', ['=', ['subbit', 'cnt_l1', 'l'], ['+', ['curly', ['bin', '1', '0'], ['subbit', 'in_i', ['*', 2, 'l']]], ['curly', ['bin', '1', '0'], ['subbit', 'in_i', ['+', ['*', 2, 'l'], 1]]]]]]]]
+    generate ['for', ['list', ['=', 'm', 0]], ['<', 'm', 8], ['list', ['=', 'm', ['+', 'm', 1]]], ['list', ['assigns', ['=', ['subbit', 'cnt_l2', 'm'], ['+', ['curly', ['bin', '1', '0'], ['subbit', 'cnt_l1', ['*', 2, 'm']]], ['curly', ['bin', '1', '0'], ['subbit', 'cnt_l1', ['+', ['*', 2, 'm'], 1]]]]]]]]
+    generate ['for', ['list', ['=', 'n', 0]], ['<', 'n', 4], ['list', ['=', 'n', ['+', 'n', 1]]], ['list', ['assigns', ['=', ['subbit', 'cnt_l3', 'n'], ['+', ['curly', ['bin', '1', '0'], ['subbit', 'cnt_l2', ['*', 2, 'n']]], ['curly', ['bin', '1', '0'], ['subbit', 'cnt_l2', ['+', ['*', 2, 'n'], 1]]]]]]]]
+    generate ['for', ['list', ['=', 'p', 0]], ['<', 'p', 2], ['list', ['=', 'p', ['+', 'p', 1]]], ['list', ['assigns', ['=', ['subbit', 'cnt_l4', 'p'], ['+', ['curly', ['bin', '1', '0'], ['subbit', 'cnt_l3', ['*', 2, 'p']]], ['curly', ['bin', '1', '0'], ['subbit', 'cnt_l3', ['+', ['*', 2, 'p'], 1]]]]]]]]
+endmodule

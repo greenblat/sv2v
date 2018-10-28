@@ -1,0 +1,26 @@
+module riscv_int_controller
+    parameter PULP_SECURE 0
+    net u_IE_i ('input', 0)
+    net rst_n ('input', 0)
+    net ctrl_ack_i ('input', 0)
+    net clk ('input', 0)
+    net irq_sec_i ('input', 0)
+    net ctrl_kill_i ('input', 0)
+    net irq_id_q ('reg', (4, 0))
+    net irq_enable_ext ('wire', 0)
+    net irq_i ('input', 0)
+    net m_IE_i ('input', 0)
+    net irq_id_i ('input', (4, 0))
+    net irq_id_ctrl_o ('output', (4, 0))
+    net exc_ctrl_ns ('wire', (1, 0))
+    net current_priv_lvl_i ('input', (1, 0))
+    net irq_sec_q ('reg', 0)
+    net exc_ctrl_cs ('reg', (1, 0))
+    net irq_sec_ctrl_o ('output', 0)
+    net irq_req_ctrl_o ('output', 0)
+    assign ('irq_req_ctrl_o', ['==', 'exc_ctrl_cs', 'IRQ_PENDING'], '', '')
+    assign ('irq_sec_ctrl_o', 'irq_sec_q', '', '')
+    assign ('irq_id_ctrl_o', 'irq_id_q', '', '')
+    always [['list', ['edge', 'posedge', 'clk'], ['edge', 'negedge', 'rst_n']], ['list', ['ifelse', ['~', 'rst_n'], ['list', ['<=', 'irq_id_q', ['dig', 32, '0']], ['<=', 'irq_sec_q', ['bin', '1', '0']], ['<=', 'exc_ctrl_cs', 'IDLE']], ['list', ['case', 'exc_ctrl_cs', [[['IDLE'], ['list', ['if', ['&', 'irq_enable_ext', 'irq_i'], ['list', ['<=', 'exc_ctrl_cs', 'IRQ_PENDING'], ['<=', 'irq_id_q', 'irq_id_i'], ['<=', 'irq_sec_q', 'irq_sec_i']]]]], [['IRQ_PENDING'], ['list', ['case', ['bin', '1', '1'], [[['ctrl_ack_i'], ['<=', 'exc_ctrl_cs', 'IRQ_DONE']], [['ctrl_kill_i'], ['<=', 'exc_ctrl_cs', 'IDLE']], ['default', ['<=', 'exc_ctrl_cs', 'IRQ_PENDING']]]]]], [['IRQ_DONE'], ['list', ['<=', 'irq_sec_q', ['bin', '1', '0']], ['<=', 'exc_ctrl_cs', 'IDLE']]]]]]]], 'always']
+    generate [['ifelse', 'PULP_SECURE', ['list', ['assigns', ['=', 'irq_enable_ext', ['|', ['&', ['|', 'u_IE_i', 'irq_sec_i'], ['==', 'current_priv_lvl_i', 'PRIV_LVL_U']], ['&', 'm_IE_i', ['==', 'current_priv_lvl_i', 'PRIV_LVL_M']]]]]], ['list', ['assigns', ['=', 'irq_enable_ext', 'm_IE_i']]]]]
+endmodule

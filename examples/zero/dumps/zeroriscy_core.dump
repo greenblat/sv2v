@@ -1,0 +1,372 @@
+module zeroriscy_core
+    parameter RV32E 0
+    parameter N_EXT_PERF_COUNTERS 0
+    parameter RV32M 1
+    net lsu_ready_ex ('wire', 0)
+    net m_irq_enable ('wire', 0)
+    net debug_halt_i ('input', 0)
+    net csr_restore_uret_id ('wire', 0)
+    net id_valid ('wire', 0)
+    net csr_save_cause ('wire', 0)
+    net csr_restore_mret_id ('wire', 0)
+    net data_we_ex ('wire', 0)
+    net data_wdata_o ('output', (31, 0))
+    net clock_en_i ('input', 0)
+    net irq_ack_o ('output', 0)
+    net clk ('wire', 0)
+    net data_we_o ('output', 0)
+    net clk_i ('input', 0)
+    net wb_valid ('wire', 0)
+    net csr_access_ex ('wire', 0)
+    net pc_set ('wire', 0)
+    net pc_mux_id ('wire', (2, 0))
+    net instr_addr_o ('output', (31, 0))
+    net debug_resume_i ('input', 0)
+    net mepc ('wire', (31, 0))
+    net lsu_busy ('wire', 0)
+    net multdiv_operand_b_ex ('wire', (31, 0))
+    net branch_decision ('wire', 0)
+    net is_decoding ('wire', 0)
+    net dbg_req ('wire', 0)
+    net dbg_csr_we ('wire', 0)
+    net ex_ready ('wire', 0)
+    net misaligned_addr ('wire', (31, 0))
+    net multdiv_signed_mode_ex ('wire', (1, 0))
+    net perf_imiss ('wire', 0)
+    net debug_halted_o ('output', 0)
+    net boot_addr_i ('input', (31, 0))
+    net data_err_i ('input', 0)
+    net instr_gnt_i ('input', 0)
+    net rst_ni ('input', 0)
+    net if_valid ('wire', 0)
+    net data_valid_lsu ('wire', 0)
+    net cluster_id_i ('input', (5, 0))
+    net data_be_o ('output', (3, 0))
+    net mult_en_ex ('wire', 0)
+    net core_busy_q ('reg', 0)
+    net csr_access ('wire', 0)
+    net csr_op ('wire', (1, 0))
+    net data_addr_o ('output', (31, 0))
+    net dbg_reg_raddr ('wire', (4, 0))
+    net lsu_store_err ('wire', 0)
+    net dbg_settings ('wire', (['-', 'DBG_SETS_W', 1], 0))
+    net instr_req_o ('output', 0)
+    net irq_i ('input', 0)
+    net pc_id ('wire', (31, 0))
+    net pc_if ('wire', (31, 0))
+    net data_misaligned ('wire', 0)
+    net dbg_jump_req ('wire', 0)
+    net id_ready ('wire', 0)
+    net alu_operand_b_ex ('wire', (31, 0))
+    net illegal_c_insn_id ('wire', 0)
+    net instr_valid_id ('wire', 0)
+    net debug_wdata_i ('input', (31, 0))
+    net data_reg_offset_ex ('wire', (1, 0))
+    net csr_save_if ('wire', 0)
+    net csr_save_id ('wire', 0)
+    net data_req_o ('output', 0)
+    net fetch_enable_i ('input', 0)
+    net csr_addr_int ('wire', (11, 0))
+    net is_compressed_id ('wire', 0)
+    net perf_jump ('wire', 0)
+    net perf_branch ('wire', 0)
+    net data_rdata_i ('input', (31, 0))
+    net data_req_ex ('wire', 0)
+    net alu_adder_result_ex ('wire', (31, 0))
+    net dbg_reg_wreq ('wire', 0)
+    net debug_we_i ('input', 0)
+    net data_sign_ext_ex ('wire', 0)
+    net dbg_reg_rdata ('wire', (31, 0))
+    net perf_tbranch ('wire', 0)
+    net multdiv_operator_ex ('wire', (1, 0))
+    net data_rvalid_i ('input', 0)
+    net debug_req_i ('input', 0)
+    net debug_rdata_o ('output', (31, 0))
+    net exc_pc_mux_id ('wire', (1, 0))
+    net clock_en ('wire', 0)
+    net div_en_ex ('wire', 0)
+    net jump_target_ex ('wire', (31, 0))
+    net lsu_load_err ('wire', 0)
+    net regfile_wdata_lsu ('wire', (31, 0))
+    net regfile_wdata_ex ('wire', (31, 0))
+    net data_load_event_ex ('wire', 0)
+    net core_busy_o ('output', 0)
+    net ext_perf_counters_i ('input', (['-', 'N_EXT_PERF_COUNTERS', 1], 0))
+    net instr_rdata_id ('wire', (31, 0))
+    net irq_id_i ('input', (4, 0))
+    net irq_id_o ('output', (4, 0))
+    net dbg_stall ('wire', 0)
+    net multdiv_operand_a_ex ('wire', (31, 0))
+    net alu_operator_ex ('wire', (['-', 'ALU_OP_WIDTH', 1], 0))
+    net csr_addr ('wire', (11, 0))
+    net dbg_ack ('wire', 0)
+    net instr_req_int ('wire', 0)
+    net sleeping ('wire', 0)
+    net csr_op_ex ('wire', (1, 0))
+    net core_id_i ('input', (3, 0))
+    net dbg_jump_addr ('wire', (31, 0))
+    net if_busy ('wire', 0)
+    net instr_rvalid_i ('input', 0)
+    net dbg_csr_addr ('wire', (11, 0))
+    net alu_operand_a_ex ('wire', (31, 0))
+    net exc_cause ('wire', (5, 0))
+    net data_misaligned_ex ('wire', 0)
+    net debug_addr_i ('input', (14, 0))
+    net debug_gnt_o ('output', 0)
+    net data_type_ex ('wire', (1, 0))
+    net data_wdata_ex ('wire', (31, 0))
+    net core_ctrl_firstfetch ('wire', 0)
+    net dbg_csr_req ('wire', 0)
+    net dbg_reg_waddr ('wire', (4, 0))
+    net clear_instr_valid ('wire', 0)
+    net dbg_trap ('wire', 0)
+    net csr_rdata ('wire', (31, 0))
+    net debug_rvalid_o ('output', 0)
+    net dbg_csr_wdata ('wire', (31, 0))
+    net ctrl_busy ('wire', 0)
+    net csr_cause ('wire', (5, 0))
+    net halt_if ('wire', 0)
+    net dbg_reg_rreq ('wire', 0)
+    net branch_in_ex ('wire', 0)
+    net instr_rdata_i ('input', (31, 0))
+    net dbg_reg_wdata ('wire', (31, 0))
+    net dbg_busy ('wire', 0)
+    net core_busy_int ('wire', 0)
+    net test_en_i ('input', 0)
+    net csr_wdata ('wire', (31, 0))
+    net data_gnt_i ('input', 0)
+    assign ('core_busy_int', ['question', ['&', 'data_load_event_ex', 'data_req_o'], 'if_busy', ['|', ['|', 'if_busy', 'ctrl_busy'], 'lsu_busy']], '', '')
+    assign ('core_busy_o', ['question', 'core_ctrl_firstfetch', ['bin', '1', '1'], 'core_busy_q'], '', '')
+    assign ('dbg_busy', ['|', ['|', ['|', ['|', 'dbg_req', 'dbg_csr_req'], 'dbg_jump_req'], 'dbg_reg_wreq'], 'debug_req_i'], '', '')
+    assign ('clock_en', ['|', ['|', 'clock_en_i', 'core_busy_o'], 'dbg_busy'], '', '')
+    assign ('sleeping', ['&', ['~', 'fetch_enable_i'], ['~', 'core_busy_o']], '', '')
+    assign ('csr_access', ['question', ['~', 'dbg_csr_req'], 'csr_access_ex', ['bin', '1', '1']], '', '')
+    assign ('csr_addr', ['question', ['~', 'dbg_csr_req'], 'csr_addr_int', 'dbg_csr_addr'], '', '')
+    assign ('csr_wdata', ['question', ['~', 'dbg_csr_req'], 'alu_operand_a_ex', 'dbg_csr_wdata'], '', '')
+    assign ('csr_op', ['question', ['~', 'dbg_csr_req'], 'csr_op_ex', ['question', 'dbg_csr_we', 'CSR_OP_WRITE', 'CSR_OP_NONE']], '', '')
+    assign ('csr_addr_int', ['question', 'csr_access_ex', ['subbus', 'alu_operand_b_ex', [11, 0]], ['dig', 32, '0']], '', '')
+    always [['list', ['edge', 'posedge', 'clk'], ['edge', 'negedge', 'rst_ni']], ['list', ['ifelse', ['~', 'rst_ni'], ['list', ['<=', 'core_busy_q', ['bin', '1', '0']]], ['list', ['<=', 'core_busy_q', 'core_busy_int']]]], 'always']
+instance cluster_clock_gating core_clock_gate_i
+      conn pin=en_i sig=clock_en
+      conn pin=test_en_i sig=test_en_i
+      conn pin=clk_o sig=clk
+      conn pin=clk_i sig=clk_i
+instance zeroriscy_cs_registers cs_registers_i
+      conn pin=is_decoding_i sig=is_decoding
+      conn pin=csr_access_i sig=csr_access
+      conn pin=jump_i sig=perf_jump
+      conn pin=boot_addr_i sig=['subbus', 'boot_addr_i', (31, 8)]
+      conn pin=core_id_i sig=core_id_i
+      conn pin=branch_taken_i sig=perf_tbranch
+      conn pin=pc_if_i sig=pc_if
+      conn pin=csr_save_id_i sig=csr_save_id
+      conn pin=csr_rdata_o sig=csr_rdata
+      conn pin=clk sig=clk
+      conn pin=cluster_id_i sig=cluster_id_i
+      conn pin=mem_store_i sig=['&', ['&', 'data_req_o', 'data_gnt_i'], 'data_we_o']
+      conn pin=csr_save_cause_i sig=csr_save_cause
+      conn pin=pc_set_i sig=pc_set
+      conn pin=rst_n sig=rst_ni
+      conn pin=csr_cause_i sig=csr_cause
+      conn pin=csr_save_if_i sig=csr_save_if
+      conn pin=branch_i sig=perf_branch
+      conn pin=pc_id_i sig=pc_id
+      conn pin=m_irq_enable_o sig=m_irq_enable
+      conn pin=if_valid_i sig=if_valid
+      conn pin=mepc_o sig=mepc
+      conn pin=csr_restore_mret_i sig=csr_restore_mret_id
+      conn pin=csr_addr_i sig=csr_addr
+      conn pin=csr_wdata_i sig=csr_wdata
+      conn pin=id_valid_i sig=id_valid
+      conn pin=is_compressed_i sig=is_compressed_id
+      conn pin=ext_counters_i sig=ext_perf_counters_i
+      conn pin=csr_op_i sig=csr_op
+      conn pin=mem_load_i sig=['&', ['&', 'data_req_o', 'data_gnt_i'], ['~', 'data_we_o']]
+      conn pin=imiss_i sig=perf_imiss
+instance zeroriscy_id_stage id_stage_i
+      conn pin=core_ctrl_firstfetch_o sig=core_ctrl_firstfetch
+      conn pin=is_decoding_o sig=is_decoding
+      conn pin=data_wdata_ex_o sig=data_wdata_ex
+      conn pin=regfile_wdata_ex_i sig=regfile_wdata_ex
+      conn pin=dbg_req_i sig=dbg_req
+      conn pin=is_compressed_i sig=is_compressed_id
+      conn pin=dbg_reg_wdata_i sig=dbg_reg_wdata
+      conn pin=branch_decision_i sig=branch_decision
+      conn pin=data_type_ex_o sig=data_type_ex
+      conn pin=multdiv_signed_mode_ex_o sig=multdiv_signed_mode_ex
+      conn pin=csr_op_ex_o sig=csr_op_ex
+      conn pin=csr_rdata_i sig=csr_rdata
+      conn pin=fetch_enable_i sig=fetch_enable_i
+      conn pin=pc_mux_o sig=pc_mux_id
+      conn pin=regfile_wdata_lsu_i sig=regfile_wdata_lsu
+      conn pin=alu_operator_ex_o sig=alu_operator_ex
+      conn pin=csr_cause_o sig=csr_cause
+      conn pin=misaligned_addr_i sig=misaligned_addr
+      conn pin=halt_if_o sig=halt_if
+      conn pin=multdiv_operand_a_ex_o sig=multdiv_operand_a_ex
+      conn pin=dbg_ack_o sig=dbg_ack
+      conn pin=lsu_store_err_i sig=lsu_store_err
+      conn pin=clk sig=clk
+      conn pin=data_load_event_ex_o sig=data_load_event_ex
+      conn pin=dbg_trap_o sig=dbg_trap
+      conn pin=id_ready_o sig=id_ready
+      conn pin=csr_restore_mret_id_o sig=csr_restore_mret_id
+      conn pin=dbg_stall_i sig=dbg_stall
+      conn pin=lsu_load_err_i sig=lsu_load_err
+      conn pin=dbg_reg_raddr_i sig=dbg_reg_raddr
+      conn pin=instr_rdata_i sig=instr_rdata_id
+      conn pin=irq_ack_o sig=irq_ack_o
+      conn pin=id_valid_o sig=id_valid
+      conn pin=mult_en_ex_o sig=mult_en_ex
+      conn pin=data_we_ex_o sig=data_we_ex
+      conn pin=csr_save_cause_o sig=csr_save_cause
+      conn pin=exc_pc_mux_o sig=exc_pc_mux_id
+      conn pin=rst_n sig=rst_ni
+      conn pin=dbg_reg_wreq_i sig=dbg_reg_wreq
+      conn pin=data_reg_offset_ex_o sig=data_reg_offset_ex
+      conn pin=csr_access_ex_o sig=csr_access_ex
+      conn pin=multdiv_operator_ex_o sig=multdiv_operator_ex
+      conn pin=exc_cause_o sig=exc_cause
+      conn pin=data_sign_ext_ex_o sig=data_sign_ext_ex
+      conn pin=perf_tbranch_o sig=perf_tbranch
+      conn pin=clear_instr_valid_o sig=clear_instr_valid
+      conn pin=instr_valid_i sig=instr_valid_id
+      conn pin=multdiv_operand_b_ex_o sig=multdiv_operand_b_ex
+      conn pin=instr_req_o sig=instr_req_int
+      conn pin=csr_save_if_o sig=csr_save_if
+      conn pin=dbg_jump_req_i sig=dbg_jump_req
+      conn pin=csr_save_id_o sig=csr_save_id
+      conn pin=pc_id_i sig=pc_id
+      conn pin=m_irq_enable_i sig=m_irq_enable
+      conn pin=dbg_settings_i sig=dbg_settings
+      conn pin=data_misaligned_i sig=data_misaligned
+      conn pin=branch_in_ex_o sig=branch_in_ex
+      conn pin=irq_i sig=irq_i
+      conn pin=div_en_ex_o sig=div_en_ex
+      conn pin=pc_set_o sig=pc_set
+      conn pin=illegal_c_insn_i sig=illegal_c_insn_id
+      conn pin=alu_operand_a_ex_o sig=alu_operand_a_ex
+      conn pin=alu_operand_b_ex_o sig=alu_operand_b_ex
+      conn pin=data_req_ex_o sig=data_req_ex
+      conn pin=perf_jump_o sig=perf_jump
+      conn pin=test_en_i sig=test_en_i
+      conn pin=perf_branch_o sig=perf_branch
+      conn pin=dbg_reg_rdata_o sig=dbg_reg_rdata
+      conn pin=irq_id_i sig=irq_id_i
+      conn pin=irq_id_o sig=irq_id_o
+      conn pin=ex_ready_i sig=ex_ready
+      conn pin=dbg_reg_rreq_i sig=dbg_reg_rreq
+      conn pin=dbg_reg_waddr_i sig=dbg_reg_waddr
+      conn pin=ctrl_busy_o sig=ctrl_busy
+instance zeroriscy_debug_unit debug_unit_i
+      conn pin=regfile_wreq_o sig=dbg_reg_wreq
+      conn pin=exc_cause_i sig=exc_cause
+      conn pin=debug_halt_i sig=debug_halt_i
+      conn pin=dbg_req_o sig=dbg_req
+      conn pin=debug_halted_o sig=debug_halted_o
+      conn pin=settings_o sig=dbg_settings
+      conn pin=stall_o sig=dbg_stall
+      conn pin=csr_rdata_i sig=csr_rdata
+      conn pin=dbg_ack_i sig=dbg_ack
+      conn pin=clk sig=clk_i
+      conn pin=debug_addr_i sig=debug_addr_i
+      conn pin=pc_if_i sig=pc_if
+      conn pin=debug_gnt_o sig=debug_gnt_o
+      conn pin=jump_req_o sig=dbg_jump_req
+      conn pin=regfile_raddr_o sig=dbg_reg_raddr
+      conn pin=debug_we_i sig=debug_we_i
+      conn pin=regfile_rdata_i sig=dbg_reg_rdata
+      conn pin=debug_req_i sig=debug_req_i
+      conn pin=rst_n sig=rst_ni
+      conn pin=trap_i sig=dbg_trap
+      conn pin=debug_rvalid_o sig=debug_rvalid_o
+      conn pin=pc_id_i sig=pc_id
+      conn pin=debug_wdata_i sig=debug_wdata_i
+      conn pin=csr_req_o sig=dbg_csr_req
+      conn pin=regfile_wdata_o sig=dbg_reg_wdata
+      conn pin=regfile_rreq_o sig=dbg_reg_rreq
+      conn pin=regfile_waddr_o sig=dbg_reg_waddr
+      conn pin=csr_wdata_o sig=dbg_csr_wdata
+      conn pin=csr_addr_o sig=dbg_csr_addr
+      conn pin=instr_valid_id_i sig=instr_valid_id
+      conn pin=jump_addr_o sig=dbg_jump_addr
+      conn pin=csr_we_o sig=dbg_csr_we
+      conn pin=debug_resume_i sig=debug_resume_i
+      conn pin=sleeping_i sig=sleeping
+      conn pin=debug_rdata_o sig=debug_rdata_o
+instance zeroriscy_load_store_unit load_store_unit_i
+      conn pin=data_req_o sig=data_req_o
+      conn pin=data_be_o sig=data_be_o
+      conn pin=data_wdata_ex_i sig=data_wdata_ex
+      conn pin=data_type_ex_i sig=data_type_ex
+      conn pin=data_valid_o sig=data_valid_lsu
+      conn pin=data_wdata_o sig=data_wdata_o
+      conn pin=adder_result_ex_i sig=alu_adder_result_ex
+      conn pin=data_err_i sig=data_err_i
+      conn pin=clk sig=clk
+      conn pin=data_rdata_i sig=data_rdata_i
+      conn pin=store_err_o sig=lsu_store_err
+      conn pin=data_we_o sig=data_we_o
+      conn pin=data_we_ex_i sig=data_we_ex
+      conn pin=data_rvalid_i sig=data_rvalid_i
+      conn pin=rst_n sig=rst_ni
+      conn pin=data_addr_o sig=data_addr_o
+      conn pin=data_reg_offset_ex_i sig=data_reg_offset_ex
+      conn pin=data_sign_ext_ex_i sig=data_sign_ext_ex
+      conn pin=lsu_update_addr_o sig=False
+      conn pin=busy_o sig=lsu_busy
+      conn pin=misaligned_addr_o sig=misaligned_addr
+      conn pin=data_misaligned_o sig=data_misaligned
+      conn pin=data_req_ex_i sig=data_req_ex
+      conn pin=data_gnt_i sig=data_gnt_i
+      conn pin=load_err_o sig=lsu_load_err
+      conn pin=data_rdata_ex_o sig=regfile_wdata_lsu
+instance zeroriscy_if_stage if_stage_i
+      conn pin=instr_valid_id_o sig=instr_valid_id
+      conn pin=illegal_c_insn_id_o sig=illegal_c_insn_id
+      conn pin=boot_addr_i sig=boot_addr_i
+      conn pin=pc_mux_i sig=pc_mux_id
+      conn pin=if_busy_o sig=if_busy
+      conn pin=instr_gnt_i sig=instr_gnt_i
+      conn pin=halt_if_i sig=halt_if
+      conn pin=pc_if_o sig=pc_if
+      conn pin=clk sig=clk
+      conn pin=is_compressed_id_o sig=is_compressed_id
+      conn pin=id_ready_i sig=id_ready
+      conn pin=perf_imiss_o sig=perf_imiss
+      conn pin=exc_pc_mux_i sig=exc_pc_mux_id
+      conn pin=rst_n sig=rst_ni
+      conn pin=pc_id_o sig=pc_id
+      conn pin=clear_instr_valid_i sig=clear_instr_valid
+      conn pin=exception_pc_reg_i sig=mepc
+      conn pin=instr_req_o sig=instr_req_o
+      conn pin=instr_addr_o sig=instr_addr_o
+      conn pin=jump_target_ex_i sig=jump_target_ex
+      conn pin=req_i sig=instr_req_int
+      conn pin=if_valid_o sig=if_valid
+      conn pin=instr_rdata_id_o sig=instr_rdata_id
+      conn pin=instr_rdata_i sig=instr_rdata_i
+      conn pin=pc_set_i sig=pc_set
+      conn pin=instr_rvalid_i sig=instr_rvalid_i
+      conn pin=exc_vec_pc_mux_i sig=['subbus', 'exc_cause', (4, 0)]
+      conn pin=dbg_jump_addr_i sig=dbg_jump_addr
+instance zeroriscy_ex_block ex_block_i
+      conn pin=rst_n sig=rst_ni
+      conn pin=branch_decision_o sig=branch_decision
+      conn pin=jump_target_o sig=jump_target_ex
+      conn pin=multdiv_operand_b_i sig=multdiv_operand_b_ex
+      conn pin=lsu_ready_ex_i sig=data_valid_lsu
+      conn pin=alu_operator_i sig=alu_operator_ex
+      conn pin=regfile_wdata_ex_o sig=regfile_wdata_ex
+      conn pin=clk sig=clk
+      conn pin=multdiv_operator_i sig=multdiv_operator_ex
+      conn pin=alu_operand_a_i sig=alu_operand_a_ex
+      conn pin=div_en_i sig=div_en_ex
+      conn pin=mult_en_i sig=mult_en_ex
+      conn pin=alu_operand_b_i sig=alu_operand_b_ex
+      conn pin=ex_ready_o sig=ex_ready
+      conn pin=multdiv_signed_mode_i sig=multdiv_signed_mode_ex
+      conn pin=lsu_en_i sig=data_req_ex
+      conn pin=multdiv_operand_a_i sig=multdiv_operand_a_ex
+      conn pin=alu_adder_result_ex_o sig=alu_adder_result_ex
+endmodule

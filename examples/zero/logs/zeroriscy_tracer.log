@@ -1,0 +1,9 @@
+mmmmmmmmmmmmmmmmmmmmmmmmmmm 
+reading file33.v file
+info: yacc step0
+info: yacc step1
+0: ERROR!! in none: yaccer: no valid operation act=goto tok=$end kind=$end lnum=-1 pos=-1 state=0 fname=file33.v
+info: exit state False 2
+info: yacc step2
+info: yacc step3
+locals []

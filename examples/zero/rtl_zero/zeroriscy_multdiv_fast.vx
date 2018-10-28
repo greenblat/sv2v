@@ -1,0 +1,254 @@
+module zeroriscy_multdiv_fast(
+    input [33:0] alu_adder_ext_i
+    ,input [31:0] alu_adder_i
+    ,output reg [32:0] alu_operand_a_o
+    ,output reg [32:0] alu_operand_b_o
+    ,input  clk
+    ,input  div_en_i
+    ,input  equal_to_zero
+    ,input  mult_en_i
+    ,output [31:0] multdiv_result_o
+    ,input [31:0] op_a_i
+    ,input [31:0] op_b_i
+    ,input [1:0] operator_i
+    ,output  ready_o
+    ,input  rst_n
+    ,input [1:0] signed_mode_i
+);
+localparam ALBH = 1;
+localparam ALBL = 0;
+localparam MD_FINISH = 6;
+localparam AHBL = 2;
+localparam MD_CHANGE_SIGN = 5;
+localparam MD_IDLE = 0;
+localparam MD_COMP = 3;
+localparam MD_LAST = 4;
+localparam MD_ABS_B = 2;
+localparam MD_ABS_A = 1;
+localparam MD_OP_MULL = 2'b00;
+localparam MD_OP_DIV = 2'b10;
+localparam AHBH = 3;
+reg  mult_is_ready;
+wire [32:0] res_adder_h;
+wire  rem_change_sign;
+reg [31:0] op_numerator_q;
+wire [31:0] one_shift;
+reg  is_greater_equal;
+wire  signed_mult;
+reg [33:0] op_reminder_n;
+reg [4:0] div_counter_q;
+reg [31:0] op_denominator_q;
+reg [2:0] divcurr_state_n;
+wire [32:0] next_reminder;
+reg [2:0] divcurr_state_q;
+reg [31:0] op_denominator_n;
+reg [33:0] accum;
+reg [31:0] op_quotient_q;
+reg [4:0] div_counter_n;
+reg [31:0] op_quotient_n;
+reg [31:0] op_numerator_n;
+wire [32:0] next_quotient;
+wire  div_change_sign;
+reg  sign_a;
+reg  sign_b;
+reg [33:0] mac_res_n;
+wire [33:0] mac_res;
+wire [34:0] mac_res_ext;
+reg [15:0] mult_op_a;
+reg [1:0] mult_state_q;
+reg [15:0] mult_op_b;
+reg [1:0] mult_state_n;
+wire  div_sign_a;
+wire  div_sign_b;
+reg [33:0] mac_res_q;
+assign   signed_mult = signed_mode_i != 2'b00;
+assign   multdiv_result_o = div_en_i ? mac_res_q[31:0] : mac_res_n[31:0];
+assign   mac_res_ext = ($signed({sign_a, mult_op_a}) * $signed({sign_b, mult_op_b})) + $signed(accum);
+assign   mac_res = mac_res_ext[33:0];
+assign   res_adder_h = alu_adder_ext_i[33:1];
+assign   next_reminder = is_greater_equal ? res_adder_h : mac_res_q[32:0];
+assign   next_quotient = is_greater_equal ? (op_quotient_q | one_shift) : op_quotient_q;
+assign   one_shift = {31'b0, 1'b1} << div_counter_q;
+assign   div_sign_a = op_a_i[31] & signed_mode_i[0];
+assign   div_sign_b = op_b_i[31] & signed_mode_i[1];
+assign   div_change_sign = div_sign_a ^ div_sign_b;
+assign   rem_change_sign = div_sign_a;
+assign   ready_o = mult_is_ready | (divcurr_state_q == MD_FINISH);
+always @(posedge clk or negedge rst_n) begin
+    begin :proc_mult_state_q
+        if(~rst_n) begin
+            mult_state_q <= ALBL;
+            mac_res_q <= 32'd0;
+            div_counter_q <= 32'd0;
+            divcurr_state_q <= MD_IDLE;
+            op_denominator_q <= 32'd0;
+            op_numerator_q <= 32'd0;
+            op_quotient_q <= 32'd0;
+        end else begin
+            if(mult_en_i) begin
+                mult_state_q <= mult_state_n;
+            end
+            if(div_en_i) begin
+                div_counter_q <= div_counter_n;
+                op_denominator_q <= op_denominator_n;
+                op_numerator_q <= op_numerator_n;
+                op_quotient_q <= op_quotient_n;
+                divcurr_state_q <= divcurr_state_n;
+            end
+            case (1'b1)
+                mult_en_i: mac_res_q <= mac_res_n;
+                div_en_i: mac_res_q <= op_reminder_n;
+                default: mac_res_q <= mac_res_q;
+            endcase
+        end
+    end
+end
+always @(*) begin
+    if(~(mac_res_q[31] ^ op_denominator_q[31])) begin
+        is_greater_equal = ~res_adder_h[31];
+    end else begin
+        is_greater_equal = mac_res_q[31];
+    end
+end
+always @(*) begin
+    begin :div_fsm
+        div_counter_n = div_counter_q - 1;
+        op_reminder_n = mac_res_q;
+        op_quotient_n = op_quotient_q;
+        divcurr_state_n = divcurr_state_q;
+        op_numerator_n = op_numerator_q;
+        op_denominator_n = op_denominator_q;
+        alu_operand_a_o = {32'h0, 1'b1};
+        alu_operand_b_o = {(~op_b_i), 1'b1};
+        case (divcurr_state_q)
+            MD_IDLE: begin
+                case (operator_i)
+                    MD_OP_DIV: begin
+                        op_reminder_n = 32'd1;
+                        divcurr_state_n = equal_to_zero ? MD_FINISH : MD_ABS_A;
+                    end
+                    default: begin
+                        op_reminder_n = {2'b0, op_a_i};
+                        divcurr_state_n = equal_to_zero ? MD_FINISH : MD_ABS_A;
+                    end
+                endcase
+                alu_operand_a_o = {32'h0, 1'b1};
+                alu_operand_b_o = {(~op_b_i), 1'b1};
+                div_counter_n = 5'd31;
+            end
+            MD_ABS_A: begin
+                op_quotient_n = 32'd0;
+                op_numerator_n = div_sign_a ? alu_adder_i : op_a_i;
+                divcurr_state_n = MD_ABS_B;
+                div_counter_n = 5'd31;
+                alu_operand_a_o = {32'h0, 1'b1};
+                alu_operand_b_o = {(~op_a_i), 1'b1};
+            end
+            MD_ABS_B: begin
+                op_reminder_n = {33'h0, op_numerator_q[31]};
+                op_denominator_n = div_sign_b ? alu_adder_i : op_b_i;
+                divcurr_state_n = MD_COMP;
+                div_counter_n = 5'd31;
+                alu_operand_a_o = {32'h0, 1'b1};
+                alu_operand_b_o = {(~op_b_i), 1'b1};
+            end
+            MD_COMP: begin
+                op_reminder_n = {1'b0, next_reminder[31:0], op_numerator_q[div_counter_n]};
+                op_quotient_n = next_quotient;
+                if(div_counter_q == 5'd1) begin
+                    divcurr_state_n = MD_LAST;
+                end else begin
+                    divcurr_state_n = MD_COMP;
+                end
+                alu_operand_a_o = {mac_res_q[31:0], 1'b1};
+                alu_operand_b_o = {(~op_denominator_q[31:0]), 1'b1};
+            end
+            MD_LAST: begin
+                case (operator_i)
+                    MD_OP_DIV: op_reminder_n = {1'b0, next_quotient};
+                    default: op_reminder_n = {2'b0, next_reminder[31:0]};
+                endcase
+                alu_operand_a_o = {mac_res_q[31:0], 1'b1};
+                alu_operand_b_o = {(~op_denominator_q[31:0]), 1'b1};
+                divcurr_state_n = MD_CHANGE_SIGN;
+            end
+            MD_CHANGE_SIGN: begin
+                divcurr_state_n = MD_FINISH;
+                case (operator_i)
+                    MD_OP_DIV: op_reminder_n = div_change_sign ? alu_adder_i : mac_res_q;
+                    default: op_reminder_n = rem_change_sign ? alu_adder_i : mac_res_q;
+                endcase
+                alu_operand_a_o = {32'h0, 1'b1};
+                alu_operand_b_o = {(~mac_res_q[31:0]), 1'b1};
+            end
+            MD_FINISH: divcurr_state_n = MD_IDLE;
+            default: ;        endcase
+    end
+end
+always @(*) begin
+    begin :mult_fsm
+        mult_op_a = op_a_i[15:0];
+        mult_op_b = op_b_i[15:0];
+        sign_a = 1'b0;
+        sign_b = 1'b0;
+        accum = mac_res_q;
+        mac_res_n = mac_res;
+        mult_state_n = mult_state_q;
+        mult_is_ready = 1'b0;
+        case (mult_state_q)
+            ALBL: begin
+                mult_op_a = op_a_i[15:0];
+                mult_op_b = op_b_i[15:0];
+                sign_a = 1'b0;
+                sign_b = 1'b0;
+                accum = 32'd0;
+                mac_res_n = mac_res;
+                mult_state_n = ALBH;
+            end
+            ALBH: begin
+                mult_op_a = op_a_i[15:0];
+                mult_op_b = op_b_i[31:16];
+                sign_a = 1'b0;
+                sign_b = signed_mode_i[1] & op_b_i[31];
+                accum = {18'b0, mac_res_q[31:16]};
+                case (operator_i)
+                    MD_OP_MULL: mac_res_n = {2'b0, mac_res[15:0], mac_res_q[15:0]};
+                    default: mac_res_n = mac_res;
+                endcase
+                mult_state_n = AHBL;
+            end
+            AHBL: begin
+                mult_op_a = op_a_i[31:16];
+                mult_op_b = op_b_i[15:0];
+                sign_a = signed_mode_i[0] & op_a_i[31];
+                sign_b = 1'b0;
+                case (operator_i)
+                    MD_OP_MULL: begin
+                        accum = {18'b0, mac_res_q[31:16]};
+                        mac_res_n = {2'b0, mac_res[15:0], mac_res_q[15:0]};
+                        mult_is_ready = 1'b1;
+                        mult_state_n = ALBL;
+                    end
+                    default: begin
+                        accum = mac_res_q;
+                        mac_res_n = mac_res;
+                        mult_state_n = AHBH;
+                    end
+                endcase
+            end
+            AHBH: begin
+                mult_op_a = op_a_i[31:16];
+                mult_op_b = op_b_i[31:16];
+                sign_a = signed_mode_i[0] & op_a_i[31];
+                sign_b = signed_mode_i[1] & op_b_i[31];
+                accum[17:0] = mac_res_q[33:16];
+                accum[33:18] = { 18 { {(signed_mult & mac_res_q[33])} }};
+                mac_res_n = mac_res;
+                mult_state_n = ALBL;
+                mult_is_ready = 1'b1;
+            end
+            default: ;        endcase
+    end
+end
+endmodule
+

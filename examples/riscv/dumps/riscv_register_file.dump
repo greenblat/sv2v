@@ -1,0 +1,29 @@
+module riscv_register_file
+    parameter FPU 0
+    parameter ADDR_WIDTH 5
+    parameter DATA_WIDTH 32
+    net rst_n ('input', 0)
+    net mem_fp ('reg', ('packed', (['-', 'NUM_FP_WORDS', 1], 0), (['-', 'DATA_WIDTH', 1], 0)))
+    net rdata_c_o ('output', (['-', 'DATA_WIDTH', 1], 0))
+    net raddr_a_i ('input', (['-', 'ADDR_WIDTH', 1], 0))
+    net raddr_b_i ('input', (['-', 'ADDR_WIDTH', 1], 0))
+    net mem ('reg', ('packed', (['-', 'NUM_WORDS', 1], 0), (['-', 'DATA_WIDTH', 1], 0)))
+    net clk ('input', 0)
+    net test_en_i ('input', 0)
+    net we_b_dec ('reg', (['-', 'NUM_TOT_WORDS', 1], 0))
+    net we_a_i ('input', 0)
+    net waddr_b_i ('input', (['-', 'ADDR_WIDTH', 1], 0))
+    net wdata_b_i ('input', (['-', 'DATA_WIDTH', 1], 0))
+    net ii ('reg', (31, 0))
+    net rdata_a_o ('output', (['-', 'DATA_WIDTH', 1], 0))
+    net wdata_a_i ('input', (['-', 'DATA_WIDTH', 1], 0))
+    net we_b_i ('input', 0)
+    net raddr_c_i ('input', (['-', 'ADDR_WIDTH', 1], 0))
+    net waddr_a_i ('input', (['-', 'ADDR_WIDTH', 1], 0))
+    net rdata_b_o ('output', (['-', 'DATA_WIDTH', 1], 0))
+    net we_a_dec ('reg', (['-', 'NUM_TOT_WORDS', 1], 0))
+    always ['*', ['named_begin', 'we_a_decoder', ['list', ['for', ['list', ['=', 'ii', 0]], ['<', 'ii', 'NUM_TOT_WORDS'], ['list', ['=', 'ii', ['+', 'ii', 1]]], ['list', ['ifelse', ['==', 'waddr_a_i', 'ii'], ['=', ['subbit', 'we_a_dec', 'ii'], 'we_a_i'], ['=', ['subbit', 'we_a_dec', 'ii'], ['bin', '1', '0']]]]]]], 'always']
+    always ['*', ['named_begin', 'we_b_decoder', ['list', ['for', ['list', ['=', 'ii', 0]], ['<', 'ii', 'NUM_TOT_WORDS'], ['list', ['=', 'ii', ['+', 'ii', 1]]], ['list', ['ifelse', ['==', 'waddr_b_i', 'ii'], ['=', ['subbit', 'we_b_dec', 'ii'], 'we_b_i'], ['=', ['subbit', 'we_b_dec', 'ii'], ['bin', '1', '0']]]]]]], 'always']
+    generate [['ifelse', ['==', 'FPU', 1], ['list', ['assigns', ['=', 'rdata_a_o', ['question', ['subbit', 'raddr_a_i', 5], ['subbit', 'mem_fp', ['subbus', 'raddr_a_i', [4, 0]]], ['subbit', 'mem', ['subbus', 'raddr_a_i', [4, 0]]]]]], ['assigns', ['=', 'rdata_b_o', ['question', ['subbit', 'raddr_b_i', 5], ['subbit', 'mem_fp', ['subbus', 'raddr_b_i', [4, 0]]], ['subbit', 'mem', ['subbus', 'raddr_b_i', [4, 0]]]]]], ['assigns', ['=', 'rdata_c_o', ['question', ['subbit', 'raddr_c_i', 5], ['subbit', 'mem_fp', ['subbus', 'raddr_c_i', [4, 0]]], ['subbit', 'mem', ['subbus', 'raddr_c_i', [4, 0]]]]]]], ['list', ['assigns', ['=', 'rdata_a_o', ['subbit', 'mem', ['subbus', 'raddr_a_i', [4, 0]]]]], ['assigns', ['=', 'rdata_b_o', ['subbit', 'mem', ['subbus', 'raddr_b_i', [4, 0]]]]], ['assigns', ['=', 'rdata_c_o', ['subbit', 'mem', ['subbus', 'raddr_c_i', [4, 0]]]]]]]]
+    generate [['always', [['edge', 'posedge', 'clk'], ['edge', 'negedge', 'rst_n']], ['list', ['ifelse', ['~', 'rst_n'], ['list', ['<=', ['subbit', 'mem', 0], ['bin', '32', '0']]], ['list', ['<=', ['subbit', 'mem', 0], ['bin', '32', '0']]]]]], ['for', ['list', ['=', 'i', 1]], ['<', 'i', 'NUM_WORDS'], ['list', ['=', 'i', ['+', 'i', 1]]], ['named_begin', 'rf_gen', ['list', ['always', [['edge', 'posedge', 'clk'], ['edge', 'negedge', 'rst_n']], ['named_begin', 'register_write_behavioral', ['list', ['ifelse', ['~', 'rst_n'], ['list', ['<=', ['subbit', 'mem', 'i'], ['bin', '32', '0']]], ['list', ['ifelse', ['subbit', 'we_b_dec', 'i'], ['<=', ['subbit', 'mem', 'i'], 'wdata_b_i'], ['if', ['subbit', 'we_a_dec', 'i'], ['<=', ['subbit', 'mem', 'i'], 'wdata_a_i']]]]]]]]]]], ['if', ['==', 'FPU', 1], ['list', ['for', ['list', ['=', 'l', 0]], ['<', 'l', 'NUM_FP_WORDS'], ['list', ['=', 'l', ['+', 'l', 1]]], ['list', ['always', [['edge', 'posedge', 'clk'], ['edge', 'negedge', 'rst_n']], ['named_begin', 'fp_regs', ['list', ['ifelse', ['~', 'rst_n'], ['<=', ['subbit', 'mem_fp', 'l'], ['dig', 32, '0']], ['ifelse', ['subbit', 'we_b_dec', ['+', 'l', 'NUM_WORDS']], ['<=', ['subbit', 'mem_fp', 'l'], 'wdata_b_i'], ['if', ['subbit', 'we_a_dec', ['+', 'l', 'NUM_WORDS']], ['<=', ['subbit', 'mem_fp', 'l'], 'wdata_a_i']]]]]]]]]]]]
+endmodule

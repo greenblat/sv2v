@@ -1,0 +1,76 @@
+module zeroriscy_if_stage
+    net instr_valid_id_o ('output reg', 0)
+    net offset_fsm_ns ('reg', (0, 0))
+    net illegal_c_insn_id_o ('output reg', 0)
+    net fetch_valid ('wire', 0)
+    net boot_addr_i ('input', (31, 0))
+    net pc_mux_i ('input', (2, 0))
+    net if_busy_o ('output', 0)
+    net instr_gnt_i ('input', 0)
+    net halt_if_i ('input', 0)
+    net pc_if_o ('output', (31, 0))
+    net clk ('input', 0)
+    net is_compressed_id_o ('output reg', 0)
+    net fetch_ready ('reg', 0)
+    net id_ready_i ('input', 0)
+    net instr_compressed_int ('wire', 0)
+    net prefetch_busy ('wire', 0)
+    net valid ('reg', 0)
+    net instr_decompressed ('wire', (31, 0))
+    net offset_fsm_cs ('reg', (0, 0))
+    net perf_imiss_o ('output', 0)
+    net exc_pc_mux_i ('input', (1, 0))
+    net fetch_rdata ('wire', (31, 0))
+    net exc_pc ('reg', (31, 0))
+    net rst_n ('input', 0)
+    net pc_id_o ('output reg', (31, 0))
+    net clear_instr_valid_i ('input', 0)
+    net exception_pc_reg_i ('input', (31, 0))
+    net instr_req_o ('output', 0)
+    net instr_addr_o ('output', (31, 0))
+    net branch_req ('reg', 0)
+    net jump_target_ex_i ('input', (31, 0))
+    net req_i ('input', 0)
+    net if_valid_o ('output', 0)
+    net instr_rdata_id_o ('output reg', (31, 0))
+    net instr_rdata_i ('input', (31, 0))
+    net fetch_addr_n ('reg', (31, 0))
+    net pc_set_i ('input', 0)
+    net fetch_addr ('wire', (31, 0))
+    net if_ready ('wire', 0)
+    net instr_rvalid_i ('input', 0)
+    net exc_vec_pc_mux_i ('input', (4, 0))
+    net illegal_c_insn ('wire', 0)
+    net dbg_jump_addr_i ('input', (31, 0))
+    assign ('pc_if_o', 'fetch_addr', '', '')
+    assign ('if_busy_o', 'prefetch_busy', '', '')
+    assign ('perf_imiss_o', ['|', ['~', 'fetch_valid'], 'branch_req'], '', '')
+    assign ('if_ready', ['&', 'valid', 'id_ready_i'], '', '')
+    assign ('if_valid_o', ['&', ['~', 'halt_if_i'], 'if_ready'], '', '')
+    always ['*', ['named_begin', 'EXC_PC_MUX', ['list', ['=', 'exc_pc', ['dig', 32, '0']], ['case', 'exc_pc_mux_i', [[['EXC_PC_ILLINSN'], ['=', 'exc_pc', ['curly', ['subbus', 'boot_addr_i', [31, 8]], 'EXC_OFF_ILLINSN']]], [['EXC_PC_ECALL'], ['=', 'exc_pc', ['curly', ['subbus', 'boot_addr_i', [31, 8]], 'EXC_OFF_ECALL']]], [['EXC_PC_IRQ'], ['=', 'exc_pc', ['curly', ['subbus', 'boot_addr_i', [31, 8]], ['bin', '1', '0'], ['subbus', 'exc_vec_pc_mux_i', [4, 0]], ['bin', '2', '0']]]], ['default', ['empty_begin_end']]]]]], 'always']
+    always ['*', ['list', ['=', 'fetch_addr_n', ['dig', 32, '0']], ['case', 'pc_mux_i', [[['PC_BOOT'], ['=', 'fetch_addr_n', ['curly', ['subbus', 'boot_addr_i', [31, 8]], 'EXC_OFF_RST']]], [['PC_JUMP'], ['=', 'fetch_addr_n', 'jump_target_ex_i']], [['PC_EXCEPTION'], ['=', 'fetch_addr_n', 'exc_pc']], [['PC_ERET'], ['=', 'fetch_addr_n', 'exception_pc_reg_i']], [['PC_DBG_NPC'], ['=', 'fetch_addr_n', 'dbg_jump_addr_i']], ['default', ['empty_begin_end']]]]], 'always']
+    always [['list', ['edge', 'posedge', 'clk'], ['edge', 'negedge', 'rst_n']], ['list', ['ifelse', ['~', 'rst_n'], ['list', ['<=', 'offset_fsm_cs', 'IDLE']], ['list', ['<=', 'offset_fsm_cs', 'offset_fsm_ns']]]], 'always']
+    always ['*', ['list', ['=', 'offset_fsm_ns', 'offset_fsm_cs'], ['=', 'fetch_ready', ['bin', '1', '0']], ['=', 'branch_req', ['bin', '1', '0']], ['=', 'valid', ['bin', '1', '0']], ['case', 'offset_fsm_cs', [[['IDLE'], ['list', ['if', 'req_i', ['list', ['=', 'branch_req', ['bin', '1', '1']], ['=', 'offset_fsm_ns', 'WAIT']]]]], [['WAIT'], ['list', ['if', 'fetch_valid', ['list', ['=', 'valid', ['bin', '1', '1']], ['if', ['&&', 'req_i', 'if_valid_o'], ['list', ['=', 'fetch_ready', ['bin', '1', '1']], ['=', 'offset_fsm_ns', 'WAIT']]]]]]], ['default', ['list', ['=', 'offset_fsm_ns', 'IDLE']]]]], ['if', 'pc_set_i', ['list', ['=', 'valid', ['bin', '1', '0']], ['=', 'branch_req', ['bin', '1', '1']], ['=', 'offset_fsm_ns', 'WAIT']]]], 'always']
+    always [['list', ['edge', 'posedge', 'clk'], ['edge', 'negedge', 'rst_n']], ['named_begin', 'IF_ID_PIPE_REGISTERS', ['list', ['ifelse', ['~', 'rst_n'], ['list', ['<=', 'instr_valid_id_o', ['bin', '1', '0']], ['<=', 'instr_rdata_id_o', ['dig', 32, '0']], ['<=', 'illegal_c_insn_id_o', ['bin', '1', '0']], ['<=', 'is_compressed_id_o', ['bin', '1', '0']], ['<=', 'pc_id_o', ['dig', 32, '0']]], ['list', ['ifelse', 'if_valid_o', ['list', ['<=', 'instr_valid_id_o', ['bin', '1', '1']], ['<=', 'instr_rdata_id_o', 'instr_decompressed'], ['<=', 'illegal_c_insn_id_o', 'illegal_c_insn'], ['<=', 'is_compressed_id_o', 'instr_compressed_int'], ['<=', 'pc_id_o', 'pc_if_o']], ['if', 'clear_instr_valid_i', ['list', ['<=', 'instr_valid_id_o', ['bin', '1', '0']]]]]]]]], 'always']
+instance zeroriscy_compressed_decoder compressed_decoder_i
+      conn pin=is_compressed_o sig=instr_compressed_int
+      conn pin=instr_o sig=instr_decompressed
+      conn pin=illegal_instr_o sig=illegal_c_insn
+      conn pin=instr_i sig=fetch_rdata
+instance zeroriscy_prefetch_buffer prefetch_buffer_i
+      conn pin=instr_rdata_i sig=instr_rdata_i
+      conn pin=rst_n sig=rst_n
+      conn pin=clk sig=clk
+      conn pin=instr_gnt_i sig=instr_gnt_i
+      conn pin=branch_i sig=branch_req
+      conn pin=instr_req_o sig=instr_req_o
+      conn pin=instr_rvalid_i sig=instr_rvalid_i
+      conn pin=instr_addr_o sig=instr_addr_o
+      conn pin=rdata_o sig=fetch_rdata
+      conn pin=ready_i sig=fetch_ready
+      conn pin=busy_o sig=prefetch_busy
+      conn pin=req_i sig=req_i
+      conn pin=addr_i sig=['curly', ['subbus', 'fetch_addr_n', (31, 1)], ['bin', '1', '0']]
+      conn pin=addr_o sig=fetch_addr
+      conn pin=valid_o sig=fetch_valid
+endmodule

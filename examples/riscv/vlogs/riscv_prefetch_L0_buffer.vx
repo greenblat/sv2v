@@ -1,0 +1,422 @@
+module riscv_prefetch_L0_buffer #( parameter RDATA_IN_WIDTH = 128) (
+    input [31:0] addr_i
+    ,output [31:0] addr_o
+    ,input  branch_i
+    ,output  busy_o
+    ,input  clk
+    ,input  hwloop_i
+    ,input [31:0] hwloop_target_i
+    ,output [31:0] instr_addr_o
+    ,input  instr_gnt_i
+    ,input [((RDATA_IN_WIDTH / 32) - 1):0] [31:0] instr_rdata_i
+    ,output  instr_req_o
+    ,input  instr_rvalid_i
+    ,output  is_hwlp_o
+    ,output [31:0] rdata_o
+    ,input  ready_i
+    ,input  req_i
+    ,input  rst_n
+    ,output  valid_o
+);
+localparam HWLP_WAIT_GNT = 2;
+localparam HWLP_FETCH_DONE = 5;
+localparam VALID_FETCH_DONE = 13;
+localparam HWLP_GRANTED = 3;
+localparam NOT_VALID_CROSS = 8;
+localparam VALID_GRANTED = 12;
+localparam VALID_CROSS = 11;
+localparam VALID = 10;
+localparam IDLE = 0;
+localparam BRANCHED = 1;
+localparam HWLP_GRANTED_WAIT = 4;
+localparam NOT_VALID_CROSS_GRANTED = 9;
+localparam NOT_VALID_GRANTED = 7;
+localparam NOT_VALID = 6;
+reg  do_hwlp_int;
+wire  hwlp_is_crossword;
+reg [31:0] addr_q;
+wire  hwlp_aligned_is_compressed;
+wire  valid_L0;
+reg [31:0] addr_int;
+wire  unaligned_is_compressed;
+wire  next_valid;
+wire  hwlp_unaligned_is_compressed;
+reg [31:0] rdata_last_q;
+reg [31:0] addr_n;
+wire  next_upper_compressed;
+wire  fetch_valid;
+reg  use_last;
+wire  fetch_gnt;
+wire  aligned_is_compressed;
+reg  do_fetch;
+reg  is_hwlp_n;
+wire  fetch_possible;
+reg  is_hwlp_q;
+wire  upper_is_compressed;
+reg  valid;
+wire [31:0] rdata;
+wire  next_is_crossword;
+reg [3:0] NS;
+wire  is_crossword;
+reg  save_rdata_last;
+reg  save_rdata_hwlp;
+reg [3:0] CS;
+wire  busy_L0;
+wire [((RDATA_IN_WIDTH / 32) - 1):0] [31:0] rdata_L0;
+wire [31:0] addr_aligned_next;
+reg  do_hwlp;
+reg [31:0] rdata_unaligned;
+reg  use_hwlp;
+wire [31:0] addr_L0;
+wire [31:0] addr_real_next;
+assign   rdata = (use_last || use_hwlp) ? rdata_last_q : rdata_L0[addr_o[3:2]];
+assign   rdata_unaligned[15:0] = rdata[31:16];
+assign   unaligned_is_compressed = rdata[17:16] != 2'b11;
+assign   aligned_is_compressed = rdata[1:0] != 2'b11;
+assign   upper_is_compressed = rdata_L0[3][17:16] != 2'b11;
+assign   is_crossword = (addr_o[3:1] == 3'b111) && (~upper_is_compressed);
+assign   next_is_crossword = (((addr_o[3:1] == 3'b110) && aligned_is_compressed) && (~upper_is_compressed)) || (((addr_o[3:1] == 3'b101) && (~unaligned_is_compressed)) && (~upper_is_compressed));
+assign   next_upper_compressed = (((addr_o[3:1] == 3'b110) && aligned_is_compressed) && upper_is_compressed) || (((addr_o[3:1] == 3'b101) && (~unaligned_is_compressed)) && upper_is_compressed);
+assign   next_valid = (((addr_o[3:2] != 2'b11) || next_upper_compressed) && (~next_is_crossword)) && valid;
+assign   fetch_possible = addr_o[3:2] == 2'b11;
+assign   addr_aligned_next = {addr_o[31:2], 2'b00} + 32'h4;
+assign   addr_real_next = next_is_crossword ? ({addr_o[31:4], 4'b0000} + 32'h16) : ({addr_o[31:2], 2'b00} + 32'h4);
+assign   hwlp_unaligned_is_compressed = rdata_L0[2][17:16] != 2'b11;
+assign   hwlp_aligned_is_compressed = rdata_L0[3][1:0] != 2'b11;
+assign   hwlp_is_crossword = (hwloop_target_i[3:1] == 3'b111) && (~upper_is_compressed);
+assign   rdata_o = ((~addr_o[1]) || use_hwlp) ? rdata : rdata_unaligned;
+assign   valid_o = valid & (~branch_i);
+assign   addr_o = addr_q;
+assign   is_hwlp_o = is_hwlp_q & (~branch_i);
+assign   busy_o = busy_L0;
+riscv_L0_buffer #(.RDATA_IN_WIDTH(RDATA_IN_WIDTH)) L0_buffer_i (.addr_o(addr_L0)
+ ,.branch_addr_i(addr_i)
+ ,.branch_i(branch_i)
+ ,.busy_o(busy_L0)
+ ,.clk(clk)
+ ,.fetch_gnt_o(fetch_gnt)
+ ,.fetch_valid_o(fetch_valid)
+ ,.hwlp_addr_i(hwloop_target_i)
+ ,.hwlp_i((do_hwlp | do_hwlp_int))
+ ,.instr_addr_o(instr_addr_o)
+ ,.instr_gnt_i(instr_gnt_i)
+ ,.instr_rdata_i(instr_rdata_i)
+ ,.instr_req_o(instr_req_o)
+ ,.instr_rvalid_i(instr_rvalid_i)
+ ,.prefetch_addr_i(addr_real_next)
+ ,.prefetch_i(do_fetch)
+ ,.rdata_o(rdata_L0)
+ ,.rst_n(rst_n)
+ ,.valid_o(valid_L0));
+always @(*) begin
+    case (addr_o[3:2])
+        2'b00: rdata_unaligned[31:16] = rdata_L0[1][15:0];
+        2'b01: rdata_unaligned[31:16] = rdata_L0[2][15:0];
+        2'b10: rdata_unaligned[31:16] = rdata_L0[3][15:0];
+        2'b11: rdata_unaligned[31:16] = rdata_L0[0][15:0];
+    endcase
+end
+always @(*) begin
+    addr_int = addr_o;
+    if(ready_i) begin
+        if(addr_o[1]) begin
+            if(unaligned_is_compressed) begin
+                addr_int = {addr_aligned_next[31:2], 2'b00};
+            end else begin
+                addr_int = {addr_aligned_next[31:2], 2'b10};
+            end
+        end else begin
+            if(aligned_is_compressed) begin
+                addr_int = {addr_o[31:2], 2'b10};
+            end else begin
+                addr_int = {addr_aligned_next[31:2], 2'b00};
+            end
+        end
+    end
+end
+always @(*) begin
+    NS = CS;
+    do_fetch = 1'b0;
+    do_hwlp = 1'b0;
+    do_hwlp_int = 1'b0;
+    use_last = 1'b0;
+    use_hwlp = 1'b0;
+    save_rdata_last = 1'b0;
+    save_rdata_hwlp = 1'b0;
+    valid = 1'b0;
+    addr_n = addr_int;
+    is_hwlp_n = is_hwlp_q;
+    if(ready_i) begin
+        is_hwlp_n = 1'b0;
+    end
+    case (CS)
+        IDLE: ;        BRANCHED: begin
+            valid = 1'b0;
+            do_fetch = fetch_possible;
+            if(fetch_valid && (~is_crossword)) begin
+                valid = 1'b1;
+            end
+            if(ready_i) begin
+                if(hwloop_i) begin
+                    addr_n = addr_o;
+                    NS = HWLP_WAIT_GNT;
+                end else begin
+                    if(next_valid) begin
+                        if(fetch_gnt) begin
+                            save_rdata_last = 1'b1;
+                            NS = VALID_GRANTED;
+                        end else begin
+                            NS = VALID;
+                        end
+                    end else if(next_is_crossword) begin
+                        if(fetch_gnt) begin
+                            save_rdata_last = 1'b1;
+                            NS = NOT_VALID_CROSS_GRANTED;
+                        end else begin
+                            NS = NOT_VALID_CROSS;
+                        end
+                    end else begin
+                        if(fetch_gnt) begin
+                            NS = NOT_VALID_GRANTED;
+                        end else begin
+                            NS = NOT_VALID;
+                        end
+                    end
+                end
+            end else begin
+                if(fetch_valid) begin
+                    if(is_crossword) begin
+                        save_rdata_last = 1'b1;
+                        if(fetch_gnt) begin
+                            NS = NOT_VALID_CROSS_GRANTED;
+                        end else begin
+                            NS = NOT_VALID_CROSS;
+                        end
+                    end else begin
+                        if(fetch_gnt) begin
+                            save_rdata_last = 1'b1;
+                            NS = VALID_GRANTED;
+                        end else begin
+                            NS = VALID;
+                        end
+                    end
+                end
+            end
+        end
+        NOT_VALID: begin
+            do_fetch = 1'b1;
+            if(fetch_gnt) begin
+                NS = NOT_VALID_GRANTED;
+            end
+        end
+        NOT_VALID_GRANTED: begin
+            valid = fetch_valid;
+            do_hwlp = hwloop_i;
+            if(fetch_valid) begin
+                NS = VALID;
+            end
+        end
+        NOT_VALID_CROSS: begin
+            do_fetch = 1'b1;
+            if(fetch_gnt) begin
+                save_rdata_last = 1'b1;
+                NS = NOT_VALID_CROSS_GRANTED;
+            end
+        end
+        NOT_VALID_CROSS_GRANTED: begin
+            valid = fetch_valid;
+            use_last = 1'b1;
+            do_hwlp = hwloop_i;
+            if(fetch_valid) begin
+                if(ready_i) begin
+                    NS = VALID;
+                end else begin
+                    NS = VALID_CROSS;
+                end
+            end
+        end
+        VALID: begin
+            valid = 1'b1;
+            do_fetch = fetch_possible;
+            do_hwlp = hwloop_i;
+            if(ready_i) begin
+                if(next_is_crossword) begin
+                    do_fetch = 1'b1;
+                    if(fetch_gnt) begin
+                        save_rdata_last = 1'b1;
+                        NS = NOT_VALID_CROSS_GRANTED;
+                    end else begin
+                        NS = NOT_VALID_CROSS;
+                    end
+                end else if(~next_valid) begin
+                    if(fetch_gnt) begin
+                        NS = NOT_VALID_GRANTED;
+                    end else begin
+                        NS = NOT_VALID;
+                    end
+                end else begin
+                    if(fetch_gnt) begin
+                        if(next_upper_compressed) begin
+                            save_rdata_last = 1'b1;
+                            NS = VALID_GRANTED;
+                        end
+                    end
+                end
+            end else begin
+                if(fetch_gnt) begin
+                    save_rdata_last = 1'b1;
+                    NS = VALID_GRANTED;
+                end
+            end
+        end
+        VALID_CROSS: begin
+            valid = 1'b1;
+            use_last = 1'b1;
+            do_hwlp = hwloop_i;
+            if(ready_i) begin
+                NS = VALID;
+            end
+        end
+        VALID_GRANTED: begin
+            valid = 1'b1;
+            use_last = 1'b1;
+            do_hwlp = hwloop_i;
+            if(ready_i) begin
+                if(fetch_valid) begin
+                    if(next_is_crossword) begin
+                        NS = VALID_CROSS;
+                    end else if(next_upper_compressed) begin
+                        NS = VALID_FETCH_DONE;
+                    end else begin
+                        NS = VALID;
+                    end
+                end else begin
+                    if(next_is_crossword) begin
+                        NS = NOT_VALID_CROSS_GRANTED;
+                    end else if(next_upper_compressed) begin
+                        NS = VALID_GRANTED;
+                    end else begin
+                        NS = NOT_VALID_GRANTED;
+                    end
+                end
+            end else begin
+                if(fetch_valid) begin
+                    NS = VALID_FETCH_DONE;
+                end
+            end
+        end
+        VALID_FETCH_DONE: begin
+            valid = 1'b1;
+            use_last = 1'b1;
+            do_hwlp = hwloop_i;
+            if(ready_i) begin
+                if(next_is_crossword) begin
+                    NS = VALID_CROSS;
+                end else if(next_upper_compressed) begin
+                    NS = VALID_FETCH_DONE;
+                end else begin
+                    NS = VALID;
+                end
+            end
+        end
+        HWLP_WAIT_GNT: begin
+            do_hwlp_int = 1'b1;
+            if(fetch_gnt) begin
+                is_hwlp_n = 1'b1;
+                addr_n = hwloop_target_i;
+                NS = BRANCHED;
+            end
+        end
+        HWLP_GRANTED: begin
+            valid = 1'b1;
+            use_hwlp = 1'b1;
+            if(ready_i) begin
+                addr_n = hwloop_target_i;
+                if(fetch_valid) begin
+                    is_hwlp_n = 1'b1;
+                    if(hwlp_is_crossword) begin
+                        NS = NOT_VALID_CROSS;
+                    end else begin
+                        NS = VALID;
+                    end
+                end else begin
+                    NS = HWLP_GRANTED_WAIT;
+                end
+            end else begin
+                if(fetch_valid) begin
+                    NS = HWLP_FETCH_DONE;
+                end
+            end
+        end
+        HWLP_GRANTED_WAIT: begin
+            use_hwlp = 1'b1;
+            if(fetch_valid) begin
+                is_hwlp_n = 1'b1;
+                if((addr_L0[3:1] == 3'b111) && (~upper_is_compressed)) begin
+                    NS = NOT_VALID_CROSS;
+                end else begin
+                    NS = VALID;
+                end
+            end
+        end
+        HWLP_FETCH_DONE: begin
+            valid = 1'b1;
+            use_hwlp = 1'b1;
+            if(ready_i) begin
+                is_hwlp_n = 1'b1;
+                addr_n = hwloop_target_i;
+                if(hwlp_is_crossword) begin
+                    NS = NOT_VALID_CROSS;
+                end else begin
+                    NS = VALID;
+                end
+            end
+        end
+    endcase
+    if(branch_i) begin
+        is_hwlp_n = 1'b0;
+        addr_n = addr_i;
+        NS = BRANCHED;
+    end else if(hwloop_i) begin
+        if(do_hwlp) begin
+            if(ready_i) begin
+                if(fetch_gnt) begin
+                    is_hwlp_n = 1'b1;
+                    addr_n = hwloop_target_i;
+                    NS = BRANCHED;
+                end else begin
+                    addr_n = addr_o;
+                    NS = HWLP_WAIT_GNT;
+                end
+            end else begin
+                if(fetch_gnt) begin
+                    save_rdata_hwlp = 1'b1;
+                    NS = HWLP_GRANTED;
+                end
+            end
+        end
+    end
+end
+always @(posedge clk or negedge rst_n) begin
+    if(~rst_n) begin
+        addr_q <= 32'd0;
+        is_hwlp_q <= 1'b0;
+        CS <= IDLE;
+        rdata_last_q <= 32'd0;
+    end else begin
+        addr_q <= addr_n;
+        is_hwlp_q <= is_hwlp_n;
+        CS <= NS;
+        if(save_rdata_hwlp) begin
+            rdata_last_q <= rdata_o;
+        end else if(save_rdata_last) begin
+            if(ready_i) begin
+                rdata_last_q <= rdata_L0[3];
+            end else begin
+                rdata_last_q <= rdata;
+            end
+        end
+    end
+end
+endmodule
+

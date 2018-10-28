@@ -1,0 +1,13 @@
+mmmmmmmmmmmmmmmmmmmmmmmmmmm 
+reading file33.v file
+info: yacc step0
+info: yacc step1
+info: exit state 0 1
+info: yacc step2
+info: yacc step3
+info: addmodule zeroriscy_alu (['zeroriscy_alu'])
+0: ERROR!! in none: net $unsigned used before defined
+locals ['zeroriscy_alu']
+1: ERROR!! in none: net not defined for declareRegs "k"
+2: ERROR!! in none: net not defined for declareRegs "j"
+3: ERROR!! in none: partial genvar not recognized

@@ -116,6 +116,7 @@ Definition :
     | IntDir token Width ';'
     | IntDir InstParams Tokens_list ';'
     | enum WireLogic Width '{' Tokens_list '}' Tokens_list ';'  
+    | enum WireLogic '{' Tokens_list '}' Tokens_list ';'  
     | token domino token token ';'
     | const logic Width Width token '=' '{' Exprs '}' ';'
     ;
@@ -170,6 +171,7 @@ Parameter :
     | parameter signed Pairs ';'
     | parameter Width Pairs ';'
     | parameter signed Width Pairs ';'
+    | parameter logic  Width Pairs ';'
     ;
 Localparam : localparam Pairs ';' | localparam Width Pairs ';' ;
 Defparam : defparam token '=' Expr ';' ;
@@ -179,6 +181,9 @@ Pair : token '=' Expr ;
 head_params : head_params ',' head_param | head_param ;
 head_param : 
     parameter token '=' Expr 
+    | parameter logic Width token '=' Expr 
+    | parameter integer  unsigned token '=' Expr 
+    | parameter integer  token '=' Expr 
     | token '=' Expr 
     ;
 

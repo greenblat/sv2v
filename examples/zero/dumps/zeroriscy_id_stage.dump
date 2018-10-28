@@ -1,0 +1,312 @@
+module zeroriscy_id_stage
+    parameter RV32M 1
+    parameter RV32E 0
+    net data_sign_ext_id ('wire', 0)
+    net data_req_id ('wire', 0)
+    net regfile_wdata_ex_i ('input', (31, 0))
+    net branch_decision_i ('input', 0)
+    net multdiv_signed_mode_ex_o ('output', (1, 0))
+    net id_wb_fsm_cs ('reg', 0)
+    net imm_z_type ('wire', (31, 0))
+    net irq_ack_o ('output', 0)
+    net regfile_wdata_mux ('reg', (31, 0))
+    net multdiv_stall ('reg', 0)
+    net regfile_we_id ('wire', 0)
+    net exc_kill ('wire', 0)
+    net clk ('input', 0)
+    net data_load_event_ex_o ('output', 0)
+    net dbg_trap_o ('output', 0)
+    net instr ('wire', (31, 0))
+    net jump_in_id ('wire', 0)
+    net illegal_reg_rv32e ('wire', 0)
+    net pc_set_o ('output', 0)
+    net dbg_reg_waddr_i ('input', (4, 0))
+    net operand_a_fw_id ('reg', (31, 0))
+    net illegal_c_insn_i ('input', 0)
+    net imm_u_type ('wire', (31, 0))
+    net clear_instr_valid_o ('output', 0)
+    net dbg_stall_i ('input', 0)
+    net regfile_data_rb_id ('wire', (31, 0))
+    net imm_bi_type ('wire', (31, 0))
+    net data_misaligned_i ('input', 0)
+    net exc_ack ('wire', 0)
+    net id_valid_o ('output', 0)
+    net jump_stall ('reg', 0)
+    net data_req_ex_o ('output', 0)
+    net perf_jump_o ('output', 0)
+    net perf_branch_o ('output reg', 0)
+    net imm_uj_type ('wire', (31, 0))
+    net alu_operator ('wire', (['-', 'ALU_OP_WIDTH', 1], 0))
+    net ex_ready_i ('input', 0)
+    net data_load_event_id ('wire', 0)
+    net select_data_rf ('reg', 0)
+    net regfile_we ('reg', 0)
+    net mult_int_en ('wire', 0)
+    net multdiv_operator ('wire', (1, 0))
+    net deassert_we ('wire', 0)
+    net data_type_id ('wire', (1, 0))
+    net data_reg_offset_id ('wire', (1, 0))
+    net imm_i_type ('wire', (31, 0))
+    net jump_mux_dec ('reg', 0)
+    net alu_operator_ex_o ('output', (['-', 'ALU_OP_WIDTH', 1], 0))
+    net regfile_wdata_lsu_i ('input', (31, 0))
+    net halt_if_o ('output', 0)
+    net dbg_ack_o ('output', 0)
+    net csr_restore_mret_id_o ('output', 0)
+    net id_ready_o ('output', 0)
+    net branch_set_n ('reg', 0)
+    net branch_set_q ('reg', 0)
+    net imm_vu_type ('wire', (31, 0))
+    net div_int_en ('wire', 0)
+    net mult_en_ex_o ('output', 0)
+    net csr_access ('wire', 0)
+    net csr_op ('wire', (1, 0))
+    net irq_id_ctrl ('wire', (4, 0))
+    net csr_save_cause_o ('output', 0)
+    net exc_pc_mux_o ('output', (1, 0))
+    net instr_valid_i ('input', 0)
+    net instr_req_o ('output', 0)
+    net irq_i ('input', 0)
+    net imm_b ('reg', (31, 0))
+    net imm_a ('reg', (31, 0))
+    net pc_id_i ('input', (31, 0))
+    net regfile_alu_waddr_id ('wire', (4, 0))
+    net imm_s_type ('wire', (31, 0))
+    net dbg_reg_rdata_o ('output', (31, 0))
+    net regfile_we_mux ('reg', 0)
+    net branch_stall ('reg', 0)
+    net branch_mux_dec ('reg', 0)
+    net branch_in_id ('wire', 0)
+    net load_stall ('reg', 0)
+    net multdiv_int_en ('wire', 0)
+    net operand_b_fw_id ('wire', (31, 0))
+    net fetch_enable_i ('input', 0)
+    net is_decoding_o ('output', 0)
+    net operand_a_fw_mux_sel ('wire', (1, 0))
+    net ebrk_insn ('wire', 0)
+    net dbg_reg_wdata_i ('input', (31, 0))
+    net data_type_ex_o ('output', (1, 0))
+    net csr_op_ex_o ('output', (1, 0))
+    net regfile_waddr_mux ('reg', (4, 0))
+    net pc_mux_o ('output', (2, 0))
+    net data_we_id ('wire', 0)
+    net is_compressed_i ('input', 0)
+    net imm_s3_type ('wire', (31, 0))
+    net dbg_settings_i ('input', (['-', 'DBG_SETS_W', 1], 0))
+    net data_we_ex_o ('output', 0)
+    net mret_insn_dec ('wire', 0)
+    net rst_n ('input', 0)
+    net data_reg_offset_ex_o ('output', (1, 0))
+    net csr_cause_o ('output', (5, 0))
+    net data_sign_ext_ex_o ('output', 0)
+    net instr_multicyle ('reg', 0)
+    net perf_tbranch_o ('output', 0)
+    net csr_access_ex_o ('output', 0)
+    net dbg_req_i ('input', 0)
+    net m_irq_enable_i ('input', 0)
+    net regfile_addr_rb_id ('wire', (4, 0))
+    net branch_in_ex_o ('output', 0)
+    net imm_s2_type ('wire', (31, 0))
+    net pipe_flush_dec ('wire', 0)
+    net lsu_load_err_i ('input', 0)
+    net id_wb_fsm_ns ('reg', 0)
+    net regfile_addr_ra_id ('wire', (4, 0))
+    net imm_sb_type ('wire', (31, 0))
+    net imm_a_mux_sel ('wire', (0, 0))
+    net irq_id_i ('input', (4, 0))
+    net irq_id_o ('output', (4, 0))
+    net irq_req_ctrl ('wire', 0)
+    net core_ctrl_firstfetch_o ('output', 0)
+    net multdiv_signed_mode ('wire', (1, 0))
+    net data_wdata_ex_o ('output', (31, 0))
+    net imm_b_mux_sel ('wire', (3, 0))
+    net alu_op_b_mux_sel ('wire', (2, 0))
+    net multdiv_operator_ex_o ('output', (1, 0))
+    net csr_rdata_i ('input', (31, 0))
+    net multdiv_operand_b_ex_o ('output', (31, 0))
+    net multdiv_operand_a_ex_o ('output', (31, 0))
+    net lsu_store_err_i ('input', 0)
+    net dbg_reg_rreq_i ('input', 0)
+    net alu_op_a_mux_sel ('wire', (2, 0))
+    net operand_b ('reg', (31, 0))
+    net dbg_reg_raddr_i ('input', (4, 0))
+    net dbg_jump_req_i ('input', 0)
+    net div_en_ex_o ('output', 0)
+    net jump_set ('reg', 0)
+    net branch_taken_ex ('wire', 0)
+    net regfile_data_ra_id ('wire', (31, 0))
+    net dbg_reg_wreq_i ('input', 0)
+    net exc_cause_o ('output', (5, 0))
+    net alu_operand_b ('wire', (31, 0))
+    net csr_save_if_o ('output', 0)
+    net illegal_insn_dec ('wire', 0)
+    net alu_operand_a ('reg', (31, 0))
+    net csr_save_id_o ('output', 0)
+    net halt_id ('wire', 0)
+    net misaligned_addr_i ('input', (31, 0))
+    net imm_vs_type ('wire', (31, 0))
+    net instr_rdata_i ('input', (31, 0))
+    net imm_iz_type ('wire', (31, 0))
+    net csr_status ('wire', 0)
+    net alu_operand_a_ex_o ('output', (31, 0))
+    net alu_operand_b_ex_o ('output', (31, 0))
+    net test_en_i ('input', 0)
+    net ecall_insn_dec ('wire', 0)
+    net ctrl_busy_o ('output', 0)
+    assign ('instr', 'instr_rdata_i', '', '')
+    assign ('imm_i_type', ['curly', ['curly', 'repeat', 20, ['curly', ['subbit', 'instr', 31]]], ['subbus', 'instr', [31, 20]]], '', '')
+    assign ('imm_iz_type', ['curly', ['bin', '20', '0'], ['subbus', 'instr', [31, 20]]], '', '')
+    assign ('imm_s_type', ['curly', ['curly', 'repeat', 20, ['curly', ['subbit', 'instr', 31]]], ['subbus', 'instr', [31, 25]], ['subbus', 'instr', [11, 7]]], '', '')
+    assign ('imm_sb_type', ['curly', ['curly', 'repeat', 19, ['curly', ['subbit', 'instr', 31]]], ['subbit', 'instr', 31], ['subbit', 'instr', 7], ['subbus', 'instr', [30, 25]], ['subbus', 'instr', [11, 8]], ['bin', '1', '0']], '', '')
+    assign ('imm_u_type', ['curly', ['subbus', 'instr', [31, 12]], ['bin', '12', '0']], '', '')
+    assign ('imm_uj_type', ['curly', ['curly', 'repeat', 12, ['curly', ['subbit', 'instr', 31]]], ['subbus', 'instr', [19, 12]], ['subbit', 'instr', 20], ['subbus', 'instr', [30, 21]], ['bin', '1', '0']], '', '')
+    assign ('imm_z_type', ['curly', ['bin', '27', '0'], ['subbus', 'instr', [19, 15]]], '', '')
+    assign ('imm_s2_type', ['curly', ['bin', '27', '0'], ['subbus', 'instr', [24, 20]]], '', '')
+    assign ('imm_bi_type', ['curly', ['curly', 'repeat', 27, ['curly', ['subbit', 'instr', 24]]], ['subbus', 'instr', [24, 20]]], '', '')
+    assign ('imm_s3_type', ['curly', ['bin', '27', '0'], ['subbus', 'instr', [29, 25]]], '', '')
+    assign ('imm_vs_type', ['curly', ['curly', 'repeat', 26, ['curly', ['subbit', 'instr', 24]]], ['subbus', 'instr', [24, 20]], ['subbit', 'instr', 25]], '', '')
+    assign ('imm_vu_type', ['curly', ['bin', '26', '0'], ['subbus', 'instr', [24, 20]], ['subbit', 'instr', 25]], '', '')
+    assign ('regfile_addr_ra_id', ['subbus', 'instr', [19, 15]], '', '')
+    assign ('regfile_addr_rb_id', ['subbus', 'instr', [24, 20]], '', '')
+    assign ('regfile_alu_waddr_id', ['subbus', 'instr', [11, 7]], '', '')
+    assign ('illegal_reg_rv32e', ['bin', '1', '0'], '', '')
+    assign ('clear_instr_valid_o', ['|', 'id_ready_o', 'halt_id'], '', '')
+    assign ('branch_taken_ex', ['&', 'branch_in_id', 'branch_decision_i'], '', '')
+    assign ('alu_operand_b', 'operand_b', '', '')
+    assign ('operand_b_fw_id', 'regfile_data_rb_id', '', '')
+    assign ('dbg_reg_rdata_o', 'regfile_data_rb_id', '', '')
+    assign ('multdiv_int_en', ['|', 'mult_int_en', 'div_int_en'], '', '')
+    assign ('data_we_ex_o', 'data_we_id', '', '')
+    assign ('data_type_ex_o', 'data_type_id', '', '')
+    assign ('data_sign_ext_ex_o', 'data_sign_ext_id', '', '')
+    assign ('data_wdata_ex_o', 'regfile_data_rb_id', '', '')
+    assign ('data_req_ex_o', 'data_req_id', '', '')
+    assign ('data_reg_offset_ex_o', 'data_reg_offset_id', '', '')
+    assign ('data_load_event_ex_o', 'data_load_event_id', '', '')
+    assign ('alu_operator_ex_o', 'alu_operator', '', '')
+    assign ('alu_operand_a_ex_o', 'alu_operand_a', '', '')
+    assign ('alu_operand_b_ex_o', 'alu_operand_b', '', '')
+    assign ('csr_access_ex_o', 'csr_access', '', '')
+    assign ('csr_op_ex_o', 'csr_op', '', '')
+    assign ('branch_in_ex_o', 'branch_in_id', '', '')
+    assign ('mult_en_ex_o', 'mult_int_en', '', '')
+    assign ('div_en_ex_o', 'div_int_en', '', '')
+    assign ('multdiv_operator_ex_o', 'multdiv_operator', '', '')
+    assign ('multdiv_signed_mode_ex_o', 'multdiv_signed_mode', '', '')
+    assign ('multdiv_operand_a_ex_o', 'regfile_data_ra_id', '', '')
+    assign ('multdiv_operand_b_ex_o', 'regfile_data_rb_id', '', '')
+    assign ('id_ready_o', ['&', ['&', ['&', ['~', 'load_stall'], ['~', 'branch_stall']], ['~', 'jump_stall']], ['~', 'multdiv_stall']], '', '')
+    assign ('id_valid_o', ['&', ['~', 'halt_id'], 'id_ready_o'], '', '')
+    always ['*', ['named_begin', 'alu_operand_a_mux', ['list', ['case', 'alu_op_a_mux_sel', [[['OP_A_REGA_OR_FWD'], ['=', 'alu_operand_a', 'operand_a_fw_id']], [['OP_A_CURRPC'], ['=', 'alu_operand_a', 'pc_id_i']], [['OP_A_IMM'], ['=', 'alu_operand_a', 'imm_a']], ['default', ['=', 'alu_operand_a', 'operand_a_fw_id']]]]]], 'always']
+    always ['*', ['named_begin', 'immediate_a_mux', ['list', ['case', 'imm_a_mux_sel', [[['IMMA_Z'], ['=', 'imm_a', 'imm_z_type']], [['IMMA_ZERO'], ['=', 'imm_a', ['dig', 32, '0']]], ['default', ['=', 'imm_a', ['dig', 32, '0']]]]]]], 'always']
+    always ['*', ['named_begin', 'operand_a_fw_mux', ['list', ['case', 'operand_a_fw_mux_sel', [[['SEL_MISALIGNED'], ['=', 'operand_a_fw_id', 'misaligned_addr_i']], [['SEL_REGFILE'], ['=', 'operand_a_fw_id', 'regfile_data_ra_id']], ['default', ['=', 'operand_a_fw_id', 'regfile_data_ra_id']]]]]], 'always']
+    always ['*', ['named_begin', 'immediate_b_mux', ['list', ['case', 'imm_b_mux_sel', [[['IMMB_I'], ['=', 'imm_b', 'imm_i_type']], [['IMMB_S'], ['=', 'imm_b', 'imm_s_type']], [['IMMB_U'], ['=', 'imm_b', 'imm_u_type']], [['IMMB_PCINCR'], ['=', 'imm_b', ['question', ['&&', 'is_compressed_i', ['~', 'data_misaligned_i']], ['hex', '32', '2'], ['hex', '32', '4']]]], [['IMMB_S2'], ['=', 'imm_b', 'imm_s2_type']], [['IMMB_BI'], ['=', 'imm_b', 'imm_bi_type']], [['IMMB_S3'], ['=', 'imm_b', 'imm_s3_type']], [['IMMB_VS'], ['=', 'imm_b', 'imm_vs_type']], [['IMMB_VU'], ['=', 'imm_b', 'imm_vu_type']], [['IMMB_UJ'], ['=', 'imm_b', 'imm_uj_type']], [['IMMB_SB'], ['=', 'imm_b', 'imm_sb_type']], ['default', ['=', 'imm_b', 'imm_i_type']]]]]], 'always']
+    always ['*', ['named_begin', 'alu_operand_b_mux', ['list', ['case', 'alu_op_b_mux_sel', [[['OP_B_REGB_OR_FWD'], ['=', 'operand_b', 'regfile_data_rb_id']], [['OP_B_IMM'], ['=', 'operand_b', 'imm_b']], ['default', ['=', 'operand_b', 'regfile_data_rb_id']]]]]], 'always']
+    always ['*', ['list', ['ifelse', 'dbg_reg_wreq_i', ['list', ['=', 'regfile_wdata_mux', 'dbg_reg_wdata_i'], ['=', 'regfile_waddr_mux', 'dbg_reg_waddr_i'], ['=', 'regfile_we_mux', ['bin', '1', '1']]], ['list', ['=', 'regfile_we_mux', 'regfile_we'], ['=', 'regfile_waddr_mux', 'regfile_alu_waddr_id'], ['ifelse', ['==', 'select_data_rf', 'RF_LSU'], ['=', 'regfile_wdata_mux', 'regfile_wdata_lsu_i'], ['ifelse', 'csr_access', ['=', 'regfile_wdata_mux', 'csr_rdata_i'], ['=', 'regfile_wdata_mux', 'regfile_wdata_ex_i']]]]]], 'always']
+    always [['list', ['edge', 'posedge', 'clk'], ['edge', 'negedge', 'rst_n']], ['named_begin', 'EX_WB_Pipeline_Register', ['list', ['ifelse', ['~', 'rst_n'], ['list', ['<=', 'id_wb_fsm_cs', 'IDLE'], ['<=', 'branch_set_q', ['bin', '1', '0']]], ['list', ['<=', 'id_wb_fsm_cs', 'id_wb_fsm_ns'], ['<=', 'branch_set_q', 'branch_set_n']]]]], 'always']
+    always ['*', ['list', ['=', 'id_wb_fsm_ns', 'id_wb_fsm_cs'], ['=', 'regfile_we', 'regfile_we_id'], ['=', 'load_stall', ['bin', '1', '0']], ['=', 'multdiv_stall', ['bin', '1', '0']], ['=', 'jump_stall', ['bin', '1', '0']], ['=', 'branch_stall', ['bin', '1', '0']], ['=', 'select_data_rf', 'RF_EX'], ['=', 'instr_multicyle', ['bin', '1', '0']], ['=', 'branch_set_n', ['bin', '1', '0']], ['=', 'branch_mux_dec', ['bin', '1', '0']], ['=', 'jump_set', ['bin', '1', '0']], ['=', 'jump_mux_dec', ['bin', '1', '0']], ['=', 'perf_branch_o', ['bin', '1', '0']], ['case', 'id_wb_fsm_cs', [[['IDLE'], ['list', ['=', 'jump_mux_dec', ['bin', '1', '1']], ['=', 'branch_mux_dec', ['bin', '1', '1']], ['case', ['bin', '1', '1'], [[['data_req_id'], ['list', ['=', 'regfile_we', ['bin', '1', '0']], ['=', 'id_wb_fsm_ns', 'WAIT_MULTICYCLE'], ['=', 'load_stall', ['bin', '1', '1']], ['=', 'instr_multicyle', ['bin', '1', '1']]]], [['branch_in_id'], ['list', ['=', 'id_wb_fsm_ns', ['question', 'branch_decision_i', 'WAIT_MULTICYCLE', 'IDLE']], ['=', 'branch_stall', 'branch_decision_i'], ['=', 'instr_multicyle', 'branch_decision_i'], ['=', 'branch_set_n', 'branch_decision_i'], ['=', 'perf_branch_o', ['bin', '1', '1']]]], [['multdiv_int_en'], ['list', ['=', 'regfile_we', ['bin', '1', '0']], ['=', 'id_wb_fsm_ns', 'WAIT_MULTICYCLE'], ['=', 'multdiv_stall', ['bin', '1', '1']], ['=', 'instr_multicyle', ['bin', '1', '1']]]], [['jump_in_id'], ['list', ['=', 'regfile_we', ['bin', '1', '0']], ['=', 'id_wb_fsm_ns', 'WAIT_MULTICYCLE'], ['=', 'jump_stall', ['bin', '1', '1']], ['=', 'instr_multicyle', ['bin', '1', '1']], ['=', 'jump_set', ['bin', '1', '1']]]], ['default', ['empty_begin_end']]]]]], [['WAIT_MULTICYCLE'], ['list', ['ifelse', 'ex_ready_i', ['list', ['=', 'regfile_we', 'regfile_we_id'], ['=', 'id_wb_fsm_ns', 'IDLE'], ['=', 'load_stall', ['bin', '1', '0']], ['=', 'multdiv_stall', ['bin', '1', '0']], ['=', 'select_data_rf', ['question', 'data_req_id', 'RF_LSU', 'RF_EX']]], ['list', ['=', 'regfile_we', ['bin', '1', '0']], ['=', 'instr_multicyle', ['bin', '1', '1']], ['case', ['bin', '1', '1'], [[['data_req_id'], ['=', 'load_stall', ['bin', '1', '1']]], [['multdiv_int_en'], ['=', 'multdiv_stall', ['bin', '1', '1']]], ['default', ['empty_begin_end']]]]]]]], ['default', ['empty_begin_end']]]]], 'always']
+instance zeroriscy_controller controller_i
+      conn pin=csr_status_i sig=csr_status
+      conn pin=fetch_enable_i sig=fetch_enable_i
+      conn pin=is_decoding_o sig=is_decoding_o
+      conn pin=instr_multicyle_i sig=instr_multicyle
+      conn pin=dbg_req_i sig=dbg_req_i
+      conn pin=id_ready_i sig=id_ready_o
+      conn pin=first_fetch_o sig=core_ctrl_firstfetch_o
+      conn pin=pc_mux_o sig=pc_mux_o
+      conn pin=irq_ack_o sig=irq_ack_o
+      conn pin=operand_a_fw_mux_sel_o sig=operand_a_fw_mux_sel
+      conn pin=halt_if_o sig=halt_if_o
+      conn pin=exc_ack_o sig=exc_ack
+      conn pin=dbg_ack_o sig=dbg_ack_o
+      conn pin=clk sig=clk
+      conn pin=branch_set_i sig=branch_set_q
+      conn pin=dbg_jump_req_i sig=dbg_jump_req_i
+      conn pin=exc_kill_o sig=exc_kill
+      conn pin=pipe_flush_i sig=pipe_flush_dec
+      conn pin=m_IE_i sig=m_irq_enable_i
+      conn pin=csr_cause_o sig=csr_cause_o
+      conn pin=ecall_insn_i sig=ecall_insn_dec
+      conn pin=dbg_settings_i sig=dbg_settings_i
+      conn pin=irq_req_ctrl_i sig=irq_req_ctrl
+      conn pin=csr_save_cause_o sig=csr_save_cause_o
+      conn pin=exc_pc_mux_o sig=exc_pc_mux_o
+      conn pin=rst_n sig=rst_n
+      conn pin=deassert_we_o sig=deassert_we
+      conn pin=exc_cause_o sig=exc_cause_o
+      conn pin=perf_tbranch_o sig=perf_tbranch_o
+      conn pin=instr_valid_i sig=instr_valid_i
+      conn pin=branch_in_id_i sig=branch_in_id
+      conn pin=csr_save_if_o sig=csr_save_if_o
+      conn pin=instr_req_o sig=instr_req_o
+      conn pin=dbg_stall_i sig=dbg_stall_i
+      conn pin=ebrk_insn_i sig=ebrk_insn
+      conn pin=irq_id_ctrl_i sig=irq_id_ctrl
+      conn pin=halt_id_o sig=halt_id
+      conn pin=branch_taken_ex_i sig=branch_taken_ex
+      conn pin=data_misaligned_i sig=data_misaligned_i
+      conn pin=illegal_insn_i sig=['|', 'illegal_insn_dec', 'illegal_reg_rv32e']
+      conn pin=pc_set_o sig=pc_set_o
+      conn pin=jump_set_i sig=jump_set
+      conn pin=perf_jump_o sig=perf_jump_o
+      conn pin=csr_restore_mret_id_o sig=csr_restore_mret_id_o
+      conn pin=mret_insn_i sig=mret_insn_dec
+      conn pin=csr_save_id_o sig=csr_save_id_o
+      conn pin=irq_id_o sig=irq_id_o
+      conn pin=dbg_trap_o sig=dbg_trap_o
+      conn pin=ctrl_busy_o sig=ctrl_busy_o
+instance zeroriscy_register_file registers_i
+      conn pin=rst_n sig=rst_n
+      conn pin=raddr_a_i sig=regfile_addr_ra_id
+      conn pin=raddr_b_i sig=['question', ['==', 'dbg_reg_rreq_i', ['bin', '1', '0']], 'regfile_addr_rb_id', 'dbg_reg_raddr_i']
+      conn pin=clk sig=clk
+      conn pin=test_en_i sig=test_en_i
+      conn pin=we_a_i sig=regfile_we_mux
+      conn pin=rdata_a_o sig=regfile_data_ra_id
+      conn pin=wdata_a_i sig=regfile_wdata_mux
+      conn pin=waddr_a_i sig=regfile_waddr_mux
+      conn pin=rdata_b_o sig=regfile_data_rb_id
+instance zeroriscy_decoder decoder_i
+      conn pin=data_req_o sig=data_req_id
+      conn pin=csr_access_o sig=csr_access
+      conn pin=div_int_en_o sig=div_int_en
+      conn pin=csr_status_o sig=csr_status
+      conn pin=data_reg_offset_o sig=data_reg_offset_id
+      conn pin=data_sign_extension_o sig=data_sign_ext_id
+      conn pin=illegal_insn_o sig=illegal_insn_dec
+      conn pin=jump_in_id_o sig=jump_in_id
+      conn pin=regfile_we_o sig=regfile_we_id
+      conn pin=pipe_flush_o sig=pipe_flush_dec
+      conn pin=imm_b_mux_sel_o sig=imm_b_mux_sel
+      conn pin=ecall_insn_o sig=ecall_insn_dec
+      conn pin=data_type_o sig=data_type_id
+      conn pin=data_we_o sig=data_we_id
+      conn pin=deassert_we_i sig=deassert_we
+      conn pin=alu_operator_o sig=alu_operator
+      conn pin=branch_in_id_o sig=branch_in_id
+      conn pin=data_load_event_o sig=data_load_event_id
+      conn pin=mult_int_en_o sig=mult_int_en
+      conn pin=jump_mux_i sig=jump_mux_dec
+      conn pin=multdiv_signed_mode_o sig=multdiv_signed_mode
+      conn pin=ebrk_insn_o sig=ebrk_insn
+      conn pin=data_misaligned_i sig=data_misaligned_i
+      conn pin=branch_mux_i sig=branch_mux_dec
+      conn pin=instr_rdata_i sig=instr
+      conn pin=illegal_c_insn_i sig=illegal_c_insn_i
+      conn pin=alu_op_b_mux_sel_o sig=alu_op_b_mux_sel
+      conn pin=mret_insn_o sig=mret_insn_dec
+      conn pin=imm_a_mux_sel_o sig=imm_a_mux_sel
+      conn pin=csr_op_o sig=csr_op
+      conn pin=alu_op_a_mux_sel_o sig=alu_op_a_mux_sel
+      conn pin=multdiv_operator_o sig=multdiv_operator
+instance zeroriscy_int_controller int_controller_i
+      conn pin=rst_n sig=rst_n
+      conn pin=ctrl_ack_i sig=exc_ack
+      conn pin=clk sig=clk
+      conn pin=m_IE_i sig=m_irq_enable_i
+      conn pin=ctrl_kill_i sig=exc_kill
+      conn pin=irq_i sig=irq_i
+      conn pin=irq_id_i sig=irq_id_i
+      conn pin=irq_id_ctrl_o sig=irq_id_ctrl
+      conn pin=irq_req_ctrl_o sig=irq_req_ctrl
+endmodule

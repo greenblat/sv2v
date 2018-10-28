@@ -1,0 +1,337 @@
+module zeroriscy_controller #( parameter REG_ADDR_WIDTH = 5) (
+    input  branch_in_id_i
+    ,input  branch_set_i
+    ,input  branch_taken_ex_i
+    ,input  clk
+    ,output reg [5:0] csr_cause_o
+    ,output reg  csr_restore_mret_id_o
+    ,output reg  csr_save_cause_o
+    ,output reg  csr_save_id_o
+    ,output reg  csr_save_if_o
+    ,input  csr_status_i
+    ,output reg  ctrl_busy_o
+    ,input  data_misaligned_i
+    ,output reg  dbg_ack_o
+    ,input  dbg_jump_req_i
+    ,input  dbg_req_i
+    ,input [(DBG_SETS_W - 1):0] dbg_settings_i
+    ,input  dbg_stall_i
+    ,output reg  dbg_trap_o
+    ,output reg  deassert_we_o
+    ,input  ebrk_insn_i
+    ,input  ecall_insn_i
+    ,output reg  exc_ack_o
+    ,output reg [5:0] exc_cause_o
+    ,output reg  exc_kill_o
+    ,output reg [1:0] exc_pc_mux_o
+    ,input  fetch_enable_i
+    ,output reg  first_fetch_o
+    ,output reg  halt_id_o
+    ,output reg  halt_if_o
+    ,input  id_ready_i
+    ,input  illegal_insn_i
+    ,input  instr_multicyle_i
+    ,output reg  instr_req_o
+    ,input  instr_valid_i
+    ,output reg  irq_ack_o
+    ,input [4:0] irq_id_ctrl_i
+    ,output reg [4:0] irq_id_o
+    ,input  irq_req_ctrl_i
+    ,output reg  is_decoding_o
+    ,input  jump_set_i
+    ,input  m_IE_i
+    ,input  mret_insn_i
+    ,output [1:0] operand_a_fw_mux_sel_o
+    ,output reg [2:0] pc_mux_o
+    ,output reg  pc_set_o
+    ,output reg  perf_jump_o
+    ,output reg  perf_tbranch_o
+    ,input  pipe_flush_i
+    ,input  rst_n
+);
+localparam RESET = 0;
+localparam DBG_WAIT_BRANCH = 11;
+localparam EXC_PC_ILLINSN = 2'b00;
+localparam EXC_CAUSE_BREAKPOINT = 6'h03;
+localparam DBG_SETS_EILL = 3;
+localparam FLUSH = 6;
+localparam DBG_SETS_ECALL = 4;
+localparam PC_JUMP = 3'b010;
+localparam DBG_WAIT_SLEEP = 12;
+localparam DBG_SIGNAL_SLEEP = 9;
+localparam EXC_CAUSE_ECALL_MMODE = 6'h0B;
+localparam PC_DBG_NPC = 3'b111;
+localparam DECODE = 5;
+localparam SEL_MISALIGNED = 2'b11;
+localparam BOOT_SET = 1;
+localparam SEL_REGFILE = 2'b00;
+localparam PC_BOOT = 3'b000;
+localparam DBG_SETS_W = 6;
+localparam DBG_WAIT = 10;
+localparam PC_ERET = 3'b101;
+localparam FIRST_FETCH = 4;
+localparam WAIT_SLEEP = 2;
+localparam DBG_SETS_EBRK = 1;
+localparam DBG_SETS_SSTE = 0;
+localparam EXC_PC_ECALL = 2'b01;
+localparam EXC_PC_IRQ = 2'b11;
+localparam SLEEP = 3;
+localparam PC_EXCEPTION = 3'b100;
+localparam IRQ_TAKEN = 7;
+localparam EXC_CAUSE_ILLEGAL_INSN = 6'h02;
+localparam DBG_SIGNAL = 8;
+reg [3:0] ctrl_fsm_cs;
+reg  irq_enable_int;
+reg [3:0] ctrl_fsm_ns;
+assign   operand_a_fw_mux_sel_o = data_misaligned_i ? SEL_MISALIGNED : SEL_REGFILE;
+always @(*) begin
+    instr_req_o = 1'b1;
+    exc_ack_o = 1'b0;
+    exc_kill_o = 1'b0;
+    csr_save_if_o = 1'b0;
+    csr_save_id_o = 1'b0;
+    csr_restore_mret_id_o = 1'b0;
+    csr_save_cause_o = 1'b0;
+    exc_cause_o = 32'd0;
+    exc_pc_mux_o = EXC_PC_IRQ;
+    csr_cause_o = 32'd0;
+    pc_mux_o = PC_BOOT;
+    pc_set_o = 1'b0;
+    ctrl_fsm_ns = ctrl_fsm_cs;
+    ctrl_busy_o = 1'b1;
+    is_decoding_o = 1'b0;
+    first_fetch_o = 1'b0;
+    halt_if_o = 1'b0;
+    halt_id_o = 1'b0;
+    dbg_ack_o = 1'b0;
+    irq_ack_o = 1'b0;
+    irq_id_o = irq_id_ctrl_i;
+    irq_enable_int = m_IE_i;
+    dbg_trap_o = 1'b0;
+    perf_tbranch_o = 1'b0;
+    perf_jump_o = 1'b0;
+    case (ctrl_fsm_cs)
+        RESET: begin
+            ctrl_busy_o = 1'b0;
+            instr_req_o = 1'b0;
+            if(fetch_enable_i) begin
+                ctrl_fsm_ns = BOOT_SET;
+            end else if(dbg_req_i) begin
+                ctrl_fsm_ns = DBG_SIGNAL;
+            end
+        end
+        BOOT_SET: begin
+            instr_req_o = 1'b1;
+            pc_mux_o = PC_BOOT;
+            pc_set_o = 1'b1;
+            ctrl_fsm_ns = FIRST_FETCH;
+        end
+        WAIT_SLEEP: begin
+            ctrl_busy_o = 1'b0;
+            instr_req_o = 1'b0;
+            halt_if_o = 1'b1;
+            halt_id_o = 1'b1;
+            ctrl_fsm_ns = SLEEP;
+        end
+        SLEEP: begin
+            ctrl_busy_o = 1'b0;
+            instr_req_o = 1'b0;
+            halt_if_o = 1'b1;
+            halt_id_o = 1'b1;
+            dbg_trap_o = dbg_settings_i[DBG_SETS_SSTE];
+            if(dbg_req_i) begin
+                if(fetch_enable_i || irq_req_ctrl_i) begin
+                    ctrl_fsm_ns = DBG_SIGNAL;
+                end else begin
+                    ctrl_fsm_ns = DBG_SIGNAL_SLEEP;
+                end
+            end else begin
+                if(fetch_enable_i || irq_req_ctrl_i) begin
+                    ctrl_fsm_ns = FIRST_FETCH;
+                end
+            end
+        end
+        FIRST_FETCH: begin
+            first_fetch_o = 1'b1;
+            if(id_ready_i && (~dbg_stall_i)) begin
+                ctrl_fsm_ns = DECODE;
+            end
+            if(irq_req_ctrl_i & irq_enable_int) begin
+                ctrl_fsm_ns = IRQ_TAKEN;
+                halt_if_o = 1'b1;
+                halt_id_o = 1'b1;
+            end
+        end
+        DECODE: begin
+            is_decoding_o = 1'b0;
+            if(instr_valid_i) begin
+                is_decoding_o = 1'b1;
+                case (1'b1)
+                    branch_set_i: begin
+                        pc_mux_o = PC_JUMP;
+                        pc_set_o = 1'b1;
+                        perf_tbranch_o = 1'b1;
+                        dbg_trap_o = dbg_settings_i[DBG_SETS_SSTE];
+                        if(dbg_req_i) begin
+                            ctrl_fsm_ns = DBG_SIGNAL;
+                        end
+                    end
+                    jump_set_i: begin
+                        pc_mux_o = PC_JUMP;
+                        pc_set_o = 1'b1;
+                        perf_jump_o = 1'b1;
+                        dbg_trap_o = dbg_settings_i[DBG_SETS_SSTE];
+                    end
+                    (((((mret_insn_i | ecall_insn_i) | pipe_flush_i) | ebrk_insn_i) | illegal_insn_i) | csr_status_i): begin
+                        ctrl_fsm_ns = FLUSH;
+                        halt_if_o = 1'b1;
+                        halt_id_o = 1'b1;
+                    end
+                    default: begin
+                        dbg_trap_o = dbg_settings_i[DBG_SETS_SSTE];
+                        case (1'b1)
+                            (((irq_req_ctrl_i & irq_enable_int) & (~instr_multicyle_i)) & (~branch_in_id_i)): begin
+                                ctrl_fsm_ns = IRQ_TAKEN;
+                                halt_if_o = 1'b1;
+                                halt_id_o = 1'b1;
+                            end
+                            (dbg_req_i & (~branch_taken_ex_i)): begin
+                                halt_if_o = 1'b1;
+                                if(id_ready_i) begin
+                                    ctrl_fsm_ns = DBG_SIGNAL;
+                                end
+                            end
+                            default: exc_kill_o = ((irq_req_ctrl_i & (~instr_multicyle_i)) & (~branch_in_id_i)) ? 1'b1 : 1'b0;
+                        endcase
+                    end
+                endcase
+            end else begin
+                if(irq_req_ctrl_i & irq_enable_int) begin
+                    ctrl_fsm_ns = IRQ_TAKEN;
+                    halt_if_o = 1'b1;
+                    halt_id_o = 1'b1;
+                end
+            end
+        end
+        DBG_SIGNAL: begin
+            dbg_ack_o = 1'b1;
+            halt_if_o = 1'b1;
+            ctrl_fsm_ns = DBG_WAIT;
+        end
+        DBG_SIGNAL_SLEEP: begin
+            dbg_ack_o = 1'b1;
+            halt_if_o = 1'b1;
+            ctrl_fsm_ns = DBG_WAIT_SLEEP;
+        end
+        DBG_WAIT_SLEEP: begin
+            halt_if_o = 1'b1;
+            if(dbg_jump_req_i) begin
+                pc_mux_o = PC_DBG_NPC;
+                pc_set_o = 1'b1;
+                ctrl_fsm_ns = DBG_WAIT;
+            end
+            if(~dbg_stall_i) begin
+                ctrl_fsm_ns = SLEEP;
+            end
+        end
+        DBG_WAIT: begin
+            halt_if_o = 1'b1;
+            if(dbg_jump_req_i) begin
+                pc_mux_o = PC_DBG_NPC;
+                pc_set_o = 1'b1;
+                ctrl_fsm_ns = DBG_WAIT;
+            end
+            if(~dbg_stall_i) begin
+                ctrl_fsm_ns = DECODE;
+            end
+        end
+        IRQ_TAKEN: begin
+            pc_mux_o = PC_EXCEPTION;
+            pc_set_o = 1'b1;
+            exc_pc_mux_o = EXC_PC_IRQ;
+            exc_cause_o = {1'b0, irq_id_ctrl_i};
+            csr_save_cause_o = 1'b1;
+            csr_cause_o = {1'b1, irq_id_ctrl_i};
+            csr_save_if_o = 1'b1;
+            irq_ack_o = 1'b1;
+            exc_ack_o = 1'b1;
+            ctrl_fsm_ns = DECODE;
+        end
+        FLUSH: begin
+            halt_if_o = fetch_enable_i ? dbg_req_i : 1'b1;
+            halt_id_o = 1'b1;
+            ctrl_fsm_ns = dbg_req_i ? DBG_SIGNAL : DECODE;
+            case (1'b1)
+                ecall_insn_i: begin
+                    pc_mux_o = PC_EXCEPTION;
+                    pc_set_o = 1'b1;
+                    csr_save_id_o = 1'b1;
+                    csr_save_cause_o = 1'b1;
+                    exc_pc_mux_o = EXC_PC_ECALL;
+                    exc_cause_o = EXC_CAUSE_ECALL_MMODE;
+                    csr_cause_o = EXC_CAUSE_ECALL_MMODE;
+                    dbg_trap_o = dbg_settings_i[DBG_SETS_ECALL] | dbg_settings_i[DBG_SETS_SSTE];
+                end
+                illegal_insn_i: begin
+                    pc_mux_o = PC_EXCEPTION;
+                    pc_set_o = 1'b1;
+                    csr_save_id_o = 1'b1;
+                    csr_save_cause_o = 1'b1;
+                    exc_pc_mux_o = EXC_PC_ILLINSN;
+                    exc_cause_o = EXC_CAUSE_ILLEGAL_INSN;
+                    csr_cause_o = EXC_CAUSE_ILLEGAL_INSN;
+                    dbg_trap_o = dbg_settings_i[DBG_SETS_EILL] | dbg_settings_i[DBG_SETS_SSTE];
+                end
+                mret_insn_i: begin
+                    pc_mux_o = PC_ERET;
+                    pc_set_o = 1'b1;
+                    csr_restore_mret_id_o = 1'b1;
+                    dbg_trap_o = dbg_settings_i[DBG_SETS_SSTE];
+                end
+                ebrk_insn_i: begin
+                    dbg_trap_o = dbg_settings_i[DBG_SETS_EBRK] | dbg_settings_i[DBG_SETS_SSTE];
+                    exc_cause_o = EXC_CAUSE_BREAKPOINT;
+                end
+                csr_status_i: dbg_trap_o = dbg_settings_i[DBG_SETS_SSTE];
+                pipe_flush_i: dbg_trap_o = dbg_settings_i[DBG_SETS_SSTE];
+                default: ;            endcase
+            if(fetch_enable_i) begin
+                if(dbg_req_i) begin
+                    ctrl_fsm_ns = DBG_SIGNAL;
+                end else begin
+                    ctrl_fsm_ns = DECODE;
+                end
+            end else begin
+                if(dbg_req_i) begin
+                    ctrl_fsm_ns = DBG_SIGNAL_SLEEP;
+                end else begin
+                    ctrl_fsm_ns = (mret_insn_i | pipe_flush_i) ? WAIT_SLEEP : DECODE;
+                end
+            end
+        end
+        default: begin
+            instr_req_o = 1'b0;
+            ctrl_fsm_ns = RESET;
+        end
+    endcase
+end
+always @(*) begin
+    deassert_we_o = 1'b0;
+    if(~is_decoding_o) begin
+        deassert_we_o = 1'b1;
+    end
+    if(illegal_insn_i) begin
+        deassert_we_o = 1'b1;
+    end
+end
+always @(posedge clk or negedge rst_n) begin
+    begin :UPDATE_REGS
+        if(~rst_n) begin
+            ctrl_fsm_cs <= RESET;
+        end else begin
+            ctrl_fsm_cs <= ctrl_fsm_ns;
+        end
+    end
+end
+endmodule
+

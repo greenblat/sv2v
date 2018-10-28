@@ -1,0 +1,14 @@
+mmmmmmmmmmmmmmmmmmmmmmmmmmm 
+reading file33.v file
+info: yacc step0
+info: yacc step1
+info: exit state 0 1
+info: yacc step2
+info: yacc step3
+info: addmodule riscv_alu_basic (['riscv_alu_basic'])
+locals ['riscv_alu_basic']
+0: ERROR!! in none: net not defined for declareRegs "k"
+1: ERROR!! in none: net not defined for declareRegs "m"
+2: ERROR!! in none: net not defined for declareRegs "j"
+3: ERROR!! in none: net not defined for declareRegs "i"
+4: ERROR!! in none: partial genvar not recognized

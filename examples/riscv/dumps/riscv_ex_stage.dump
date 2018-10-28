@@ -1,0 +1,147 @@
+module riscv_ex_stage
+    parameter APU_NUSFLAGS_CPU 5
+    parameter APU_NARGS_CPU 3
+    parameter APU_WOP_CPU 6
+    parameter SHARED_INT_DIV 0
+    parameter FPU 0
+    parameter APU_NDSFLAGS_CPU 15
+    parameter SHARED_FP 0
+    parameter SHARED_DSP_MULT 0
+    net apu_op_i ('input', (['-', 'APU_WOP_CPU', 1], 0))
+    net jump_target_o ('output', (31, 0))
+    net apu_waddr ('wire', (5, 0))
+    net branch_decision_o ('output', 0)
+    net fpu_prec_i ('input', (['-', 'C_PC', 1], 0))
+    net mult_dot_signed_i ('input', (1, 0))
+    net apu_en_i ('input', 0)
+    net csr_access_i ('input', 0)
+    net regfile_we_i ('input', 0)
+    net mult_ready ('wire', 0)
+    net apu_multicycle ('wire', 0)
+    net clk ('input', 0)
+    net mult_signed_mode_i ('input', (1, 0))
+    net apu_perf_wb_o ('output', 0)
+    net apu_write_dep_o ('output', 0)
+    net bmask_b_i ('input', (4, 0))
+    net imm_vec_ext_i ('input', (1, 0))
+    net apu_read_dep_o ('output', 0)
+    net apu_gnt ('wire', 0)
+    net mult_operand_b_i ('input', (31, 0))
+    net apu_master_ready_o ('output', 0)
+    net mult_multicycle_o ('output', 0)
+    net wb_contention ('reg', 0)
+    net wb_ready_i ('input', 0)
+    net apu_master_req_o ('output', 0)
+    net ex_ready_o ('output', 0)
+    net apu_flags_i ('input', (['-', 'APU_NDSFLAGS_CPU', 1], 0))
+    net alu_vec_mode_i ('input', (1, 0))
+    net mult_dot_op_b_i ('input', (31, 0))
+    net wb_contention_lsu ('reg', 0)
+    net apu_stall ('wire', 0)
+    net mult_operator_i ('input', (2, 0))
+    net apu_read_regs_valid_i ('input', (2, 0))
+    net regfile_waddr_lsu ('reg', (5, 0))
+    net regfile_we_lsu ('reg', 0)
+    net regfile_alu_waddr_i ('input', (5, 0))
+    net apu_req ('wire', 0)
+    net bmask_a_i ('input', (4, 0))
+    net alu_en_i ('input', 0)
+    net alu_operator_i ('input', (['-', 'ALU_OP_WIDTH', 1], 0))
+    net regfile_waddr_wb_o ('output reg', (5, 0))
+    net apu_valid ('wire', 0)
+    net regfile_alu_we_i ('input', 0)
+    net apu_ready ('wire', 0)
+    net mult_result ('wire', (31, 0))
+    net apu_busy_o ('output', 0)
+    net mult_imm_i ('input', (4, 0))
+    net alu_operand_c_i ('input', (31, 0))
+    net regfile_waddr_i ('input', (5, 0))
+    net regfile_wdata_wb_o ('output reg', (31, 0))
+    net alu_operand_b_i ('input', (31, 0))
+    net apu_perf_cont_o ('output', 0)
+    net mult_dot_op_c_i ('input', (31, 0))
+    net fpu_fflags_we_o ('output', 0)
+    net apu_master_result_i ('input', (31, 0))
+    net mult_dot_op_a_i ('input', (31, 0))
+    net apu_read_regs_i ('input', ('packed', (2, 0), (5, 0)))
+    net fpu_op_i ('input', (['-', 'C_CMD', 1], 0))
+    net apu_perf_type_o ('output', 0)
+    net rst_n ('input', 0)
+    net regfile_we_wb_o ('output reg', 0)
+    net alu_result ('wire', (31, 0))
+    net regfile_alu_waddr_fw_o ('output reg', (5, 0))
+    net alu_cmp_result ('wire', 0)
+    net lsu_ready_ex_i ('input', 0)
+    net branch_in_ex_i ('input', 0)
+    net alu_ready ('wire', 0)
+    net alu_operand_a_i ('input', (31, 0))
+    net regfile_alu_wdata_fw_o ('output reg', (31, 0))
+    net apu_write_regs_valid_i ('input', (1, 0))
+    net apu_operands_i ('input', ['packed', (31, 0), (['-', 'APU_NARGS_CPU', 1], 0)])
+    net mult_sel_subword_i ('input', 0)
+    net csr_rdata_i ('input', (31, 0))
+    net apu_master_gnt_i ('input', 0)
+    net apu_ready_wb_o ('output', 0)
+    net lsu_en_i ('input', 0)
+    net apu_lat_i ('input', (1, 0))
+    net apu_singlecycle ('wire', 0)
+    net mult_operand_a_i ('input', (31, 0))
+    net apu_master_operands_o ('output', ['packed', (31, 0), (['-', 'APU_NARGS_CPU', 1], 0)])
+    net lsu_rdata_i ('input', (31, 0))
+    net mult_operand_c_i ('input', (31, 0))
+    net regfile_alu_we_fw_o ('output reg', 0)
+    net apu_master_op_o ('output', (['-', 'APU_WOP_CPU', 1], 0))
+    net apu_master_valid_i ('input', 0)
+    net apu_waddr_i ('input', (5, 0))
+    net fpu_busy ('wire', 0)
+    net apu_result ('wire', (31, 0))
+    net apu_write_regs_i ('input', ('packed', (1, 0), (5, 0)))
+    net mult_en_i ('input', 0)
+    net fpu_fflags_o ('output', (['-', 'C_FFLAG', 1], 0))
+    net ex_valid_o ('output', 0)
+    net apu_active ('wire', 0)
+    assign ('branch_decision_o', 'alu_cmp_result', '', '')
+    assign ('jump_target_o', 'alu_operand_c_i', '', '')
+    assign ('apu_busy_o', 'apu_active', '', '')
+    assign ('ex_ready_o', ['|', ['&', ['&', ['&', ['&', ['&', ['~', 'apu_stall'], 'alu_ready'], 'mult_ready'], 'lsu_ready_ex_i'], 'wb_ready_i'], ['~', 'wb_contention']], 'branch_in_ex_i'], '', '')
+    assign ('ex_valid_o', ['&', ['|', ['|', ['|', ['|', 'apu_valid', 'alu_en_i'], 'mult_en_i'], 'csr_access_i'], 'lsu_en_i'], ['&', ['&', ['&', 'alu_ready', 'mult_ready'], 'lsu_ready_ex_i'], 'wb_ready_i']], '', '')
+    always ['*', ['list', ['=', 'regfile_alu_wdata_fw_o', ['dig', 32, '0']], ['=', 'regfile_alu_waddr_fw_o', ['dig', 32, '0']], ['=', 'regfile_alu_we_fw_o', ['dig', 32, '0']], ['=', 'wb_contention', ['bin', '1', '0']], ['ifelse', ['&', 'apu_valid', ['|', 'apu_singlecycle', 'apu_multicycle']], ['list', ['=', 'regfile_alu_we_fw_o', ['bin', '1', '1']], ['=', 'regfile_alu_waddr_fw_o', 'apu_waddr'], ['=', 'regfile_alu_wdata_fw_o', 'apu_result'], ['if', ['&', 'regfile_alu_we_i', ['~', 'apu_en_i']], ['list', ['=', 'wb_contention', ['bin', '1', '1']]]]], ['list', ['=', 'regfile_alu_we_fw_o', ['&', 'regfile_alu_we_i', ['~', 'apu_en_i']]], ['=', 'regfile_alu_waddr_fw_o', 'regfile_alu_waddr_i'], ['if', 'alu_en_i', ['=', 'regfile_alu_wdata_fw_o', 'alu_result']], ['if', 'mult_en_i', ['=', 'regfile_alu_wdata_fw_o', 'mult_result']], ['if', 'csr_access_i', ['=', 'regfile_alu_wdata_fw_o', 'csr_rdata_i']]]]], 'always']
+    always ['*', ['list', ['=', 'regfile_we_wb_o', ['bin', '1', '0']], ['=', 'regfile_waddr_wb_o', 'regfile_waddr_lsu'], ['=', 'regfile_wdata_wb_o', 'lsu_rdata_i'], ['=', 'wb_contention_lsu', ['bin', '1', '0']], ['ifelse', 'regfile_we_lsu', ['list', ['=', 'regfile_we_wb_o', ['bin', '1', '1']], ['if', ['&', 'apu_valid', ['&', ['!', 'apu_singlecycle'], ['!', 'apu_multicycle']]], ['list', ['=', 'wb_contention_lsu', ['bin', '1', '1']]]]], ['if', ['&', 'apu_valid', ['&', ['!', 'apu_singlecycle'], ['!', 'apu_multicycle']]], ['list', ['=', 'regfile_we_wb_o', ['bin', '1', '1']], ['=', 'regfile_waddr_wb_o', 'apu_waddr'], ['=', 'regfile_wdata_wb_o', 'apu_result']]]]], 'always']
+    always [['list', ['edge', 'posedge', 'clk'], ['edge', 'negedge', 'rst_n']], ['named_begin', 'EX_WB_Pipeline_Register', ['list', ['ifelse', ['~', 'rst_n'], ['list', ['<=', 'regfile_waddr_lsu', ['dig', 32, '0']], ['<=', 'regfile_we_lsu', ['bin', '1', '0']]], ['list', ['ifelse', 'ex_valid_o', ['list', ['<=', 'regfile_we_lsu', 'regfile_we_i'], ['if', 'regfile_we_i', ['list', ['<=', 'regfile_waddr_lsu', 'regfile_waddr_i']]]], ['if', 'wb_ready_i', ['list', ['<=', 'regfile_we_lsu', ['bin', '1', '0']]]]]]]]], 'always']
+    generate ['ifelse', ['==', 'FPU', 1], ['list', ['instance', 'riscv_apu_disp', 'apu_disp_i', {}, [['clk_i', 'clk'], ['rst_ni', 'rst_n'], ['enable_i', 'apu_en_i'], ['apu_lat_i', 'apu_lat_i'], ['apu_waddr_i', 'apu_waddr_i'], ['apu_waddr_o', 'apu_waddr'], ['apu_multicycle_o', 'apu_multicycle'], ['apu_singlecycle_o', 'apu_singlecycle'], ['active_o', 'apu_active'], ['stall_o', 'apu_stall'], ['read_regs_i', 'apu_read_regs_i'], ['read_regs_valid_i', 'apu_read_regs_valid_i'], ['read_dep_o', 'apu_read_dep_o'], ['write_regs_i', 'apu_write_regs_i'], ['write_regs_valid_i', 'apu_write_regs_valid_i'], ['write_dep_o', 'apu_write_dep_o'], ['perf_type_o', 'apu_perf_type_o'], ['perf_cont_o', 'apu_perf_cont_o'], ['apu_master_req_o', 'apu_req'], ['apu_master_ready_o', 'apu_ready'], ['apu_master_gnt_i', 'apu_gnt'], ['apu_master_valid_i', 'apu_valid']]], ['assigns', ['=', 'apu_perf_wb_o', ['|', 'wb_contention', 'wb_contention_lsu']]], ['assigns', ['=', 'apu_ready_wb_o', ['|', ['~', ['|', ['|', 'apu_active', 'apu_en_i'], 'apu_stall']], 'apu_valid']]], ['ifelse', ['==', 'SHARED_FP', 1], ['list', ['assigns', ['=', 'apu_master_req_o', 'apu_req']], ['assigns', ['=', 'apu_master_ready_o', 'apu_ready']], ['assigns', ['=', 'apu_gnt', 'apu_master_gnt_i']], ['assigns', ['=', 'apu_valid', 'apu_master_valid_i']], ['assigns', ['=', 'apu_master_operands_o', 'apu_operands_i']], ['assigns', ['=', 'apu_master_op_o', 'apu_op_i']], ['assigns', ['=', 'apu_result', 'apu_master_result_i']], ['assigns', ['=', 'fpu_fflags_we_o', 'apu_valid']]], ['list', ['instance', 'fpu_private', 'fpu_i', {}, [['clk_i', 'clk'], ['rst_ni', 'rst_n'], ['fpu_en_i', 'apu_req'], ['operand_a_i', ['subbit', 'apu_operands_i', 0]], ['operand_b_i', ['subbit', 'apu_operands_i', 1]], ['operand_c_i', ['subbit', 'apu_operands_i', 2]], ['rm_i', ['subbus', 'apu_flags_i', (2, 0)]], ['fpu_op_i', 'fpu_op_i'], ['prec_i', 'fpu_prec_i'], ['result_o', 'apu_result'], ['valid_o', 'apu_valid'], ['flags_o', 'fpu_fflags_o'], ['divsqrt_busy_o', 'fpu_busy']]], ['assigns', ['=', 'fpu_fflags_we_o', 'apu_valid']], ['assigns', ['=', 'apu_master_req_o', ['dig', 32, '0']]], ['assigns', ['=', 'apu_master_ready_o', ['bin', '1', '1']]], ['assigns', ['=', ['subbit', 'apu_master_operands_o', 0], ['dig', 32, '0']]], ['assigns', ['=', ['subbit', 'apu_master_operands_o', 1], ['dig', 32, '0']]], ['assigns', ['=', ['subbit', 'apu_master_operands_o', 2], ['dig', 32, '0']]], ['assigns', ['=', 'apu_master_op_o', ['dig', 32, '0']]], ['assigns', ['=', 'apu_gnt', ['bin', '1', '1']]]]]], ['list', ['assigns', ['=', 'apu_master_req_o', ['dig', 32, '0']]], ['assigns', ['=', 'apu_master_ready_o', ['bin', '1', '1']]], ['assigns', ['=', ['subbit', 'apu_master_operands_o', 0], ['dig', 32, '0']]], ['assigns', ['=', ['subbit', 'apu_master_operands_o', 1], ['dig', 32, '0']]], ['assigns', ['=', ['subbit', 'apu_master_operands_o', 2], ['dig', 32, '0']]], ['assigns', ['=', 'apu_master_op_o', ['dig', 32, '0']]], ['assigns', ['=', 'apu_valid', ['bin', '1', '0']]], ['assigns', ['=', 'apu_waddr', ['bin', '6', '0']]], ['assigns', ['=', 'apu_stall', ['bin', '1', '0']]], ['assigns', ['=', 'apu_active', ['bin', '1', '0']]], ['assigns', ['=', 'apu_ready_wb_o', ['bin', '1', '1']]], ['assigns', ['=', 'apu_perf_wb_o', ['bin', '1', '0']]], ['assigns', ['=', 'apu_perf_cont_o', ['bin', '1', '0']]], ['assigns', ['=', 'apu_perf_type_o', ['bin', '1', '0']]], ['assigns', ['=', 'apu_singlecycle', ['bin', '1', '0']]], ['assigns', ['=', 'apu_multicycle', ['bin', '1', '0']]], ['assigns', ['=', 'apu_read_dep_o', ['bin', '1', '0']]], ['assigns', ['=', 'apu_write_dep_o', ['bin', '1', '0']]], ['assigns', ['=', 'fpu_fflags_we_o', ['bin', '1', '0']]], ['assigns', ['=', 'fpu_fflags_o', ['dig', 32, '0']]]]]
+instance riscv_alu alu_i
+      conn pin=vector_mode_i sig=alu_vec_mode_i
+      conn pin=rst_n sig=rst_n
+      conn pin=clk sig=clk
+      conn pin=comparison_result_o sig=alu_cmp_result
+      conn pin=bmask_b_i sig=bmask_b_i
+      conn pin=operator_i sig=alu_operator_i
+      conn pin=ready_o sig=alu_ready
+      conn pin=enable_i sig=alu_en_i
+      conn pin=operand_c_i sig=alu_operand_c_i
+      conn pin=bmask_a_i sig=bmask_a_i
+      conn pin=result_o sig=alu_result
+      conn pin=imm_vec_ext_i sig=imm_vec_ext_i
+      conn pin=operand_b_i sig=alu_operand_b_i
+      conn pin=operand_a_i sig=alu_operand_a_i
+      conn pin=ex_ready_i sig=ex_ready_o
+instance riscv_mult mult_i
+      conn pin=rst_n sig=rst_n
+      conn pin=ex_ready_i sig=ex_ready_o
+      conn pin=op_c_i sig=mult_operand_c_i
+      conn pin=clk sig=clk
+      conn pin=dot_op_b_i sig=mult_dot_op_b_i
+      conn pin=op_a_i sig=mult_operand_a_i
+      conn pin=short_subword_i sig=mult_sel_subword_i
+      conn pin=ready_o sig=mult_ready
+      conn pin=enable_i sig=mult_en_i
+      conn pin=dot_op_c_i sig=mult_dot_op_c_i
+      conn pin=short_signed_i sig=mult_signed_mode_i
+      conn pin=dot_signed_i sig=mult_dot_signed_i
+      conn pin=operator_i sig=mult_operator_i
+      conn pin=dot_op_a_i sig=mult_dot_op_a_i
+      conn pin=multicycle_o sig=mult_multicycle_o
+      conn pin=imm_i sig=mult_imm_i
+      conn pin=op_b_i sig=mult_operand_b_i
+      conn pin=result_o sig=mult_result
+endmodule

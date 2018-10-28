@@ -1,0 +1,16 @@
+module riscv_hwloop_controller
+    parameter N_REGS 2
+    net hwlp_counter_i ('input', ('packed', (['-', 'N_REGS', 1], 0), (31, 0)))
+    net hwlp_end_addr_i ('input', ('packed', (['-', 'N_REGS', 1], 0), (31, 0)))
+    net j ('reg', (31, 0))
+    net hwlp_dec_cnt_o ('output reg', (['-', 'N_REGS', 1], 0))
+    net hwlp_jump_o ('output', 0)
+    net hwlp_start_addr_i ('input', ('packed', (['-', 'N_REGS', 1], 0), (31, 0)))
+    net hwlp_dec_cnt_id_i ('input', (['-', 'N_REGS', 1], 0))
+    net pc_is_end_addr ('reg', (['-', 'N_REGS', 1], 0))
+    net current_pc_i ('input', (31, 0))
+    net hwlp_targ_addr_o ('output reg', (31, 0))
+    assign ('hwlp_jump_o', ['|', 'pc_is_end_addr'], '', '')
+    always ['*', ['list', ['=', 'hwlp_targ_addr_o', ['dig', 32, '0']], ['=', 'hwlp_dec_cnt_o', ['dig', 32, '0']], ['for', ['list', ['=', 'j', 0]], ['<', 'j', 'N_REGS'], ['list', ['=', 'j', ['+', 'j', 1]]], ['list', ['if', ['subbit', 'pc_is_end_addr', 'j'], ['list', ['=', 'hwlp_targ_addr_o', ['subbit', 'hwlp_start_addr_i', 'j']], ['=', ['subbit', 'hwlp_dec_cnt_o', 'j'], ['bin', '1', '1']], ['taskcall', 'break']]]]]], 'always']
+    generate ['for', ['list', ['=', 'i', 0]], ['<', 'i', 'N_REGS'], ['list', ['=', 'i', ['+', 'i', 1]]], ['list', ['always', ['*'], ['list', ['=', ['subbit', 'pc_is_end_addr', 'i'], ['bin', '1', '0']], ['if', ['==', 'current_pc_i', ['subbit', 'hwlp_end_addr_i', 'i']], ['list', ['ifelse', ['!=', ['sub_slice', 'hwlp_counter_i', 'i', (31, 2)], ['hex', '30', '0']], ['list', ['=', ['subbit', 'pc_is_end_addr', 'i'], ['bin', '1', '1']]], ['list', ['case', ['sub_slice', 'hwlp_counter_i', 'i', (1, 0)], [[[['bin', '2', '11']], ['=', ['subbit', 'pc_is_end_addr', 'i'], ['bin', '1', '1']]], [[['bin', '2', '10']], ['=', ['subbit', 'pc_is_end_addr', 'i'], ['~', ['subbit', 'hwlp_dec_cnt_id_i', 'i']]]], [[['bin', '2', '01'], ['bin', '2', '00']], ['=', ['subbit', 'pc_is_end_addr', 'i'], ['bin', '1', '0']]]]]]]]]]]]]
+endmodule

@@ -1,0 +1,44 @@
+module zeroriscy_prefetch_buffer
+    net valid_stored ('wire', 0)
+    net addr_i ('input', (31, 0))
+    net addr_o ('output', (31, 0))
+    net fifo_clear ('reg', 0)
+    net instr_gnt_i ('input', 0)
+    net clk ('input', 0)
+    net fifo_valid ('reg', 0)
+    net fifo_ready ('wire', 0)
+    net ready_i ('input', 0)
+    net NS ('reg', (1, 0))
+    net rst_n ('input', 0)
+    net addr_valid ('reg', 0)
+    net branch_i ('input', 0)
+    net instr_addr_q ('reg', (31, 0))
+    net instr_req_o ('output reg', 0)
+    net instr_addr_o ('output reg', (31, 0))
+    net rdata_o ('output', (31, 0))
+    net busy_o ('output', 0)
+    net CS ('reg', (1, 0))
+    net req_i ('input', 0)
+    net valid_o ('output', 0)
+    net instr_rdata_i ('input', (31, 0))
+    net fetch_addr ('wire', (31, 0))
+    net instr_rvalid_i ('input', 0)
+    assign ('busy_o', ['||', ['!=', 'CS', 'IDLE'], 'instr_req_o'], '', '')
+    assign ('fetch_addr', ['+', ['curly', ['subbus', 'instr_addr_q', [31, 2]], ['bin', '2', '00']], ['dig', '32', '4']], '', '')
+    always ['*', ['list', ['=', 'fifo_clear', 'branch_i']], 'always']
+    always ['*', ['list', ['=', 'instr_req_o', ['bin', '1', '0']], ['=', 'instr_addr_o', 'fetch_addr'], ['=', 'fifo_valid', ['bin', '1', '0']], ['=', 'addr_valid', ['bin', '1', '0']], ['=', 'NS', 'CS'], ['case', 'CS', [[['IDLE'], ['list', ['=', 'instr_addr_o', 'fetch_addr'], ['=', 'instr_req_o', ['bin', '1', '0']], ['if', 'branch_i', ['=', 'instr_addr_o', 'addr_i']], ['if', ['&', 'req_i', ['|', 'fifo_ready', 'branch_i']], ['list', ['=', 'instr_req_o', ['bin', '1', '1']], ['=', 'addr_valid', ['bin', '1', '1']], ['ifelse', 'instr_gnt_i', ['=', 'NS', 'WAIT_RVALID'], ['list', ['=', 'NS', 'WAIT_GNT']]]]]]], [['WAIT_GNT'], ['list', ['=', 'instr_addr_o', 'instr_addr_q'], ['=', 'instr_req_o', ['bin', '1', '1']], ['if', 'branch_i', ['list', ['=', 'instr_addr_o', 'addr_i'], ['=', 'addr_valid', ['bin', '1', '1']]]], ['ifelse', 'instr_gnt_i', ['=', 'NS', 'WAIT_RVALID'], ['=', 'NS', 'WAIT_GNT']]]], [['WAIT_RVALID'], ['list', ['=', 'instr_addr_o', 'fetch_addr'], ['if', 'branch_i', ['=', 'instr_addr_o', 'addr_i']], ['ifelse', ['&', 'req_i', ['|', 'fifo_ready', 'branch_i']], ['list', ['ifelse', 'instr_rvalid_i', ['list', ['=', 'instr_req_o', ['bin', '1', '1']], ['=', 'fifo_valid', ['bin', '1', '1']], ['=', 'addr_valid', ['bin', '1', '1']], ['ifelse', 'instr_gnt_i', ['list', ['=', 'NS', 'WAIT_RVALID']], ['list', ['=', 'NS', 'WAIT_GNT']]]], ['list', ['if', 'branch_i', ['list', ['=', 'addr_valid', ['bin', '1', '1']], ['=', 'NS', 'WAIT_ABORTED']]]]]], ['list', ['if', 'instr_rvalid_i', ['list', ['=', 'fifo_valid', ['bin', '1', '1']], ['=', 'NS', 'IDLE']]]]]]], [['WAIT_ABORTED'], ['list', ['=', 'instr_addr_o', 'instr_addr_q'], ['if', 'branch_i', ['list', ['=', 'instr_addr_o', 'addr_i'], ['=', 'addr_valid', ['bin', '1', '1']]]], ['if', 'instr_rvalid_i', ['list', ['=', 'instr_req_o', ['bin', '1', '1']], ['ifelse', 'instr_gnt_i', ['list', ['=', 'NS', 'WAIT_RVALID']], ['list', ['=', 'NS', 'WAIT_GNT']]]]]]], ['default', ['list', ['=', 'NS', 'IDLE'], ['=', 'instr_req_o', ['bin', '1', '0']]]]]]], 'always']
+    always [['list', ['edge', 'posedge', 'clk'], ['edge', 'negedge', 'rst_n']], ['list', ['ifelse', ['~', 'rst_n'], ['list', ['<=', 'CS', 'IDLE'], ['<=', 'instr_addr_q', ['dig', 32, '0']]], ['list', ['<=', 'CS', 'NS'], ['if', 'addr_valid', ['list', ['<=', 'instr_addr_q', 'instr_addr_o']]]]]], 'always']
+instance zeroriscy_fetch_fifo fifo_i
+      conn pin=rst_n sig=rst_n
+      conn pin=out_valid_o sig=valid_o
+      conn pin=out_addr_o sig=addr_o
+      conn pin=out_rdata_o sig=rdata_o
+      conn pin=clk sig=clk
+      conn pin=in_rdata_i sig=instr_rdata_i
+      conn pin=in_addr_i sig=instr_addr_q
+      conn pin=out_ready_i sig=ready_i
+      conn pin=clear_i sig=fifo_clear
+      conn pin=in_valid_i sig=fifo_valid
+      conn pin=in_ready_o sig=fifo_ready
+      conn pin=out_valid_stored_o sig=valid_stored
+endmodule

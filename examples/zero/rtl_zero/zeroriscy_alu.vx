@@ -1,0 +1,132 @@
+module zeroriscy_alu(
+    output [33:0] adder_result_ext_o
+    ,output [31:0] adder_result_o
+    ,output  comparison_result_o
+    ,output  is_equal_result_o
+    ,input  multdiv_en_i
+    ,input [32:0] multdiv_operand_a_i
+    ,input [32:0] multdiv_operand_b_i
+    ,input [31:0] operand_a_i
+    ,input [31:0] operand_b_i
+    ,input [(ALU_OP_WIDTH - 1):0] operator_i
+    ,output reg [31:0] result_o
+);
+localparam ALU_SLTS = 6'b000010;
+localparam ALU_NE = 6'b001101;
+localparam ALU_SLTU = 6'b000011;
+localparam ALU_SRA = 6'b100100;
+localparam ALU_SRL = 6'b100101;
+localparam ALU_AND = 6'b010101;
+localparam ALU_LEU = 6'b000101;
+localparam ALU_EQ = 6'b001100;
+localparam ALU_OR = 6'b101110;
+localparam ALU_LES = 6'b000100;
+localparam ALU_SLETS = 6'b000110;
+localparam ALU_SLETU = 6'b000111;
+localparam ALU_ADD = 6'b011000;
+localparam ALU_GTS = 6'b001000;
+localparam ALU_GTU = 6'b001001;
+localparam ALU_OP_WIDTH = 6;
+localparam ALU_SLL = 6'b100111;
+localparam ALU_LTS = 6'b000000;
+localparam ALU_LTU = 6'b000001;
+localparam ALU_SUB = 6'b011001;
+localparam ALU_GES = 6'b001010;
+localparam ALU_GEU = 6'b001011;
+localparam ALU_XOR = 6'b101111;
+wire [31:0] shift_amt;
+wire [31:0] shift_result;
+wire  is_equal;
+reg  is_greater_equal;
+reg  cmp_result;
+wire [32:0] adder_in_a;
+wire [32:0] adder_in_b;
+wire [31:0] operand_a_rev;
+wire  shift_left;
+reg  adder_op_b_negate;
+wire [31:0] adder_result;
+reg  cmp_signed;
+wire [31:0] shift_right_result;
+wire [31:0] shift_op_a;
+wire [32:0] operand_b_neg;
+wire [32:0] shift_op_a_32;
+wire [31:0] shift_left_result;
+wire  shift_arithmetic;
+genvar j;
+assign   adder_in_a = multdiv_en_i ? multdiv_operand_a_i : {operand_a_i, 1'b1};
+assign   operand_b_neg = {operand_b_i, 1'b0} ^ { 33 { {adder_op_b_negate} }};
+assign   adder_in_b = multdiv_en_i ? multdiv_operand_b_i : operand_b_neg;
+assign   adder_result_ext_o = $unsigned(adder_in_a) + $unsigned(adder_in_b);
+assign   adder_result = adder_result_ext_o[32:1];
+assign   adder_result_o = adder_result;
+assign   shift_amt = operand_b_i;
+assign   shift_left = operator_i == ALU_SLL;
+assign   shift_arithmetic = operator_i == ALU_SRA;
+assign   shift_op_a = shift_left ? operand_a_rev : operand_a_i;
+assign   shift_op_a_32 = {(shift_arithmetic & shift_op_a[31]), shift_op_a};
+assign   shift_right_result = $signed(shift_op_a_32) >>> shift_amt[4:0];
+assign   shift_result = shift_left ? shift_left_result : shift_right_result;
+assign   is_equal = adder_result == 32'b0;
+assign   is_equal_result_o = is_equal;
+assign   comparison_result_o = cmp_result;
+generate
+    genvar k ;
+
+    for(k=0;k < 32;k=k + 1)begin
+        begin :g_revloop
+assign operand_a_rev[k] = operand_a_i[(31 - k)];
+        end
+    end
+
+endgenerate
+generate
+    for(j=0;j < 32;j=j + 1)begin
+        begin :g_resrevloop
+assign shift_left_result[j] = shift_right_result[(31 - j)];
+        end
+    end
+
+endgenerate
+always @(*) begin
+    adder_op_b_negate = 1'b0;
+    case (operator_i)
+        ALU_SUB,ALU_EQ,ALU_NE,ALU_GTU,ALU_GEU,ALU_LTU,ALU_LEU,ALU_GTS,ALU_GES,ALU_LTS,ALU_LES,ALU_SLTS,ALU_SLTU,ALU_SLETS,ALU_SLETU: adder_op_b_negate = 1'b1;
+        default: ;    endcase
+end
+always @(*) begin
+    cmp_signed = 1'b0;
+    case (operator_i)
+        ALU_GTS,ALU_GES,ALU_LTS,ALU_LES,ALU_SLTS,ALU_SLETS: cmp_signed = 1'b1;
+        default: ;    endcase
+end
+always @(*) begin
+    if(~(operand_a_i[31] ^ operand_b_i[31])) begin
+        is_greater_equal = ~adder_result[31];
+    end else begin
+        is_greater_equal = operand_a_i[31] ^ cmp_signed;
+    end
+end
+always @(*) begin
+    cmp_result = is_equal;
+    case (operator_i)
+        ALU_EQ: cmp_result = is_equal;
+        ALU_NE: cmp_result = ~is_equal;
+        ALU_GTS,ALU_GTU: cmp_result = is_greater_equal && (~is_equal);
+        ALU_GES,ALU_GEU: cmp_result = is_greater_equal;
+        ALU_LTS,ALU_SLTS,ALU_LTU,ALU_SLTU: cmp_result = ~is_greater_equal;
+        ALU_SLETS,ALU_SLETU,ALU_LES,ALU_LEU: cmp_result = (~is_greater_equal) || is_equal;
+        default: ;    endcase
+end
+always @(*) begin
+    result_o = 32'd0;
+    case (operator_i)
+        ALU_AND: result_o = operand_a_i & operand_b_i;
+        ALU_OR: result_o = operand_a_i | operand_b_i;
+        ALU_XOR: result_o = operand_a_i ^ operand_b_i;
+        ALU_ADD,ALU_SUB: result_o = adder_result;
+        ALU_SLL,ALU_SRL,ALU_SRA: result_o = shift_result;
+        ALU_EQ,ALU_NE,ALU_GTU,ALU_GEU,ALU_LTU,ALU_LEU,ALU_GTS,ALU_GES,ALU_LTS,ALU_LES,ALU_SLTS,ALU_SLTU,ALU_SLETS,ALU_SLETU: result_o = cmp_result;
+        default: ;    endcase
+end
+endmodule
+

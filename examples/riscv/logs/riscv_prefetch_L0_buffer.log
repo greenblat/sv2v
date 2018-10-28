@@ -1,0 +1,10 @@
+mmmmmmmmmmmmmmmmmmmmmmmmmmm 
+reading file33.v file
+info: yacc step0
+info: yacc step1
+info: exit state 0 1
+info: yacc step2
+info: yacc step3
+info: addmodule riscv_prefetch_L0_buffer (['riscv_prefetch_L0_buffer'])
+locals ['riscv_prefetch_L0_buffer']
+0: ERROR!! in none: conflict reg/wire=rdata_unaligned

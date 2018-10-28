@@ -1,0 +1,42 @@
+module zeroriscy_int_controller(
+    input  clk
+    ,input  ctrl_ack_i
+    ,input  ctrl_kill_i
+    ,input  irq_i
+    ,output [4:0] irq_id_ctrl_o
+    ,input [4:0] irq_id_i
+    ,output  irq_req_ctrl_o
+    ,input  m_IE_i
+    ,input  rst_n
+);
+localparam IDLE = 0;
+localparam IRQ_PENDING = 1;
+localparam IRQ_DONE = 2;
+reg [1:0] exc_ctrl_cs;
+reg [4:0] irq_id_q;
+wire  irq_enable_ext;
+wire [1:0] exc_ctrl_ns;
+assign   irq_enable_ext = m_IE_i;
+assign   irq_req_ctrl_o = exc_ctrl_cs == IRQ_PENDING;
+assign   irq_id_ctrl_o = irq_id_q;
+always @(posedge clk or negedge rst_n) begin
+    if(~rst_n) begin
+        irq_id_q <= 32'd0;
+        exc_ctrl_cs <= IDLE;
+    end else begin
+        case (exc_ctrl_cs)
+            IDLE: if(irq_enable_ext & irq_i) begin
+                exc_ctrl_cs <= IRQ_PENDING;
+                irq_id_q <= irq_id_i;
+            end
+            IRQ_PENDING: case (1'b1)
+                ctrl_ack_i: exc_ctrl_cs <= IRQ_DONE;
+                ctrl_kill_i: exc_ctrl_cs <= IDLE;
+                default: exc_ctrl_cs <= IRQ_PENDING;
+            endcase
+            IRQ_DONE: exc_ctrl_cs <= IDLE;
+        endcase
+    end
+end
+endmodule
+

@@ -1300,6 +1300,19 @@ def get_definition(List):
 
 def add_definition(List):
 
+
+    Vars = matches.matches(List,'enum !WireLogic { !Tokens_list } !Tokens_list ;',False)
+    if Vars:
+        Dir = get_dir(Vars[0])
+        List0 = get_list(Vars[1])
+        List1 = get_list(Vars[2])
+        for Net in List1:
+            Current.add_sig(Net,Dir,0)
+        for ind,Enum in enumerate(List0):
+            Current.add_localparam(Enum,ind)
+        return
+
+
     Vars = matches.matches(List,'enum !WireLogic !Width { !Tokens_list } !Tokens_list ;',False)
     if Vars:
         Dir = get_dir(Vars[0])

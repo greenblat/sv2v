@@ -1,0 +1,584 @@
+module riscv_cs_registers #( parameter N_HWLP_BITS = $clog2(N_HWLP),parameter N_EXT_CNT = 0,parameter APU = 0,parameter FPU = 0,parameter PULP_SECURE = 0,parameter N_HWLP = 2) (
+    input  apu_contention_i
+    ,input  apu_dep_i
+    ,input  apu_typeconflict_i
+    ,input  apu_wb_i
+    ,input [23:0] boot_addr_i
+    ,input  branch_i
+    ,input  branch_taken_i
+    ,input  clk
+    ,input [5:0] cluster_id_i
+    ,input [3:0] core_id_i
+    ,input  csr_access_i
+    ,input [11:0] csr_addr_i
+    ,input [5:0] csr_cause_i
+    ,input  csr_irq_sec_i
+    ,input [1:0] csr_op_i
+    ,output reg [31:0] csr_rdata_o
+    ,input  csr_restore_mret_i
+    ,input  csr_restore_uret_i
+    ,input  csr_save_cause_i
+    ,input  csr_save_id_i
+    ,input  csr_save_if_i
+    ,input [31:0] csr_wdata_i
+    ,output reg [31:0] epc_o
+    ,input [(N_EXT_CNT - 1):0] ext_counters_i
+    ,input [(C_FFLAG - 1):0] fflags_i
+    ,input  fflags_we_i
+    ,output [(C_PC - 1):0] fprec_o
+    ,output [2:0] frm_o
+    ,input [(N_HWLP - 1):0] [31:0] hwlp_cnt_i
+    ,output [31:0] hwlp_data_o
+    ,input [(N_HWLP - 1):0] [31:0] hwlp_end_i
+    ,output reg [(N_HWLP_BITS - 1):0] hwlp_regid_o
+    ,input [(N_HWLP - 1):0] [31:0] hwlp_start_i
+    ,output reg [2:0] hwlp_we_o
+    ,input  id_valid_i
+    ,input  imiss_i
+    ,input  is_compressed_i
+    ,input  is_decoding_i
+    ,input  jr_stall_i
+    ,input  jump_i
+    ,input  ld_stall_i
+    ,output  m_irq_enable_o
+    ,input  mem_load_i
+    ,input  mem_store_i
+    ,output [23:0] mtvec_o
+    ,input [31:0] pc_id_i
+    ,input [31:0] pc_if_i
+    ,input  pc_set_i
+    ,output [1:0] priv_lvl_o
+    ,input  rst_n
+    ,output  sec_lvl_o
+    ,output  u_irq_enable_o
+    ,output [23:0] utvec_o
+);
+localparam PRIV_LVL_U = 2'b00;
+localparam C_FFLAG = 5;
+localparam CSR_OP_SET = 2'b10;
+localparam CSR_OP_CLEAR = 2'b11;
+localparam PERF_APU_ID = ((PERF_EXT_ID + 1) + N_EXT_CNT);
+localparam N_PERF_REGS = 1;
+localparam CSR_OP_WRITE = 2'b01;
+localparam N_PERF_COUNTERS = ((12 + N_EXT_CNT) + N_APU_CNT);
+localparam C_PC = 5;
+localparam N_APU_CNT = (APU == 1) ? 4 : 0;
+localparam PERF_EXT_ID = 11;
+localparam C_RM = 3;
+localparam PRIV_LVL_M = 2'b11;
+localparam CSR_OP_NONE = 2'b00;
+wire [(N_PERF_COUNTERS - 1):0] PCCR_inc;
+reg [23:0] utvec_n;
+reg [23:0] utvec_q;
+reg [31:0] csr_wdata_int;
+reg [4:0] pccr_index;
+reg [5:0] ucause_n;
+reg [31:0] exception_pc;
+reg [5:0] ucause_q;
+reg  csr_we_int;
+reg [31:0] uepc_q;
+reg  is_pcmr;
+reg [(C_FFLAG - 1):0] fflags_q;
+reg [(C_FFLAG - 1):0] fflags_n;
+reg [31:0] uepc_n;
+reg  is_pcer;
+reg  id_valid_q;
+reg [31:0] perf_rdata;
+reg  pccr_all_sel;
+reg [(C_PC - 1):0] fprec_q;
+reg [31:0] csr_rdata_int;
+reg [(C_PC - 1):0] fprec_n;
+reg [31:0] mepc_q;
+reg [23:0] mtvec_reg_q;
+reg [1:0] priv_lvl_n;
+reg [31:0] mepc_n;
+wire [(N_PERF_COUNTERS - 1):0] PCCR_in;
+reg [1:0] PCMR_q;
+reg [1:0] PCMR_n;
+reg [(N_PERF_COUNTERS - 1):0] PCCR_inc_q;
+reg [23:0] mtvec_n;
+reg [5:0] mcause_n;
+reg [(N_PERF_COUNTERS - 1):0] PCER_n;
+reg [5:0] mcause_q;
+wire [23:0] mtvec_q;
+wire  is_irq;
+reg [1:0] priv_lvl_q;
+wire [1:0] priv_lvl_reg_q;
+reg [(N_PERF_REGS - 1):0] [31:0] PCCR_q;
+reg [(N_PERF_REGS - 1):0] [31:0] PCCR_n;
+reg [5:0] mstatus_q;
+reg [(C_RM - 1):0] frm_n;
+reg [(C_RM - 1):0] frm_q;
+reg [5:0] mstatus_n;
+reg  is_pccr;
+reg [(N_PERF_COUNTERS - 1):0] PCER_q;
+reg [31:0] i;
+assign   is_irq = csr_cause_i[5];
+assign   hwlp_data_o = csr_wdata_int;
+assign   m_irq_enable_o = mstatus_q[4:4] & (priv_lvl_q == PRIV_LVL_M);
+assign   u_irq_enable_o = mstatus_q[5:5] & (priv_lvl_q == PRIV_LVL_U);
+assign   priv_lvl_o = priv_lvl_q;
+assign   sec_lvl_o = priv_lvl_q[0];
+assign   frm_o = FPU ? frm_q : 32'd0;
+assign   fprec_o = FPU ? fprec_q : 32'd0;
+assign   mtvec_o = mtvec_q;
+assign   utvec_o = utvec_q;
+assign   mtvec_q = PULP_SECURE ? mtvec_reg_q : boot_addr_i;
+assign   PCCR_in[0] = 1'b1;
+assign   PCCR_in[1] = id_valid_i & is_decoding_i;
+assign   PCCR_in[2] = ld_stall_i & id_valid_q;
+assign   PCCR_in[3] = jr_stall_i & id_valid_q;
+assign   PCCR_in[4] = imiss_i & (~pc_set_i);
+assign   PCCR_in[5] = mem_load_i;
+assign   PCCR_in[6] = mem_store_i;
+assign   PCCR_in[7] = jump_i & id_valid_q;
+assign   PCCR_in[8] = branch_i & id_valid_q;
+assign   PCCR_in[9] = (branch_i & branch_taken_i) & id_valid_q;
+assign   PCCR_in[10] = (id_valid_i & is_decoding_i) & is_compressed_i;
+assign   PCCR_in[((PERF_EXT_ID + N_EXT_CNT) - 1):PERF_EXT_ID] = ext_counters_i;
+assign   PCCR_inc[0] = (|(PCCR_in & PCER_q)) & PCMR_q[0];
+generate
+    if(PULP_SECURE == 1) begin
+always @(*) begin
+    case (csr_addr_i)
+        12'h001: csr_rdata_int = FPU ? {27'b0, fflags_q} : 32'd0;
+        12'h002: csr_rdata_int = FPU ? {29'b0, frm_q} : 32'd0;
+        12'h003: csr_rdata_int = FPU ? {24'b0, frm_q, fflags_q} : 32'd0;
+        12'h006: csr_rdata_int = FPU ? {27'b0, fprec_q} : 32'd0;
+        12'h300: csr_rdata_int = {19'b0, mstatus_q[1:0], 3'b0, mstatus_q[2:2], 2'h0, mstatus_q[3:3], mstatus_q[4:4], 2'h0, mstatus_q[5:5]};
+        12'h305: csr_rdata_int = {mtvec_q, 8'h0};
+        12'h341: csr_rdata_int = mepc_q;
+        12'h342: csr_rdata_int = {mcause_q[5], 26'b0, mcause_q[4:0]};
+        12'hF14: csr_rdata_int = {21'b0, cluster_id_i[5:0], 1'b0, core_id_i[3:0]};
+        12'h7B0: csr_rdata_int = hwlp_start_i[0];
+        12'h7B1: csr_rdata_int = hwlp_end_i[0];
+        12'h7B2: csr_rdata_int = hwlp_cnt_i[0];
+        12'h7B4: csr_rdata_int = hwlp_start_i[1];
+        12'h7B5: csr_rdata_int = hwlp_end_i[1];
+        12'h7B6: csr_rdata_int = hwlp_cnt_i[1];
+        12'h000: csr_rdata_int = {27'b0, mstatus_q[3:3], 3'h0, mstatus_q[5:5]};
+        12'h005: csr_rdata_int = {utvec_q, 8'h0};
+        12'h014: csr_rdata_int = {21'b0, cluster_id_i[5:0], 1'b0, core_id_i[3:0]};
+        12'h041: csr_rdata_int = uepc_q;
+        12'h042: csr_rdata_int = {ucause_q[5], 26'h0, ucause_q[4:0]};
+        12'hC10: csr_rdata_int = {30'h0, priv_lvl_q};
+        default: csr_rdata_int = 32'd0;
+    endcase
+end
+    end else begin
+always @(*) begin
+    case (csr_addr_i)
+        12'h001: csr_rdata_int = FPU ? {27'b0, fflags_q} : 32'd0;
+        12'h002: csr_rdata_int = FPU ? {29'b0, frm_q} : 32'd0;
+        12'h003: csr_rdata_int = FPU ? {24'b0, frm_q, fflags_q} : 32'd0;
+        12'h006: csr_rdata_int = FPU ? {27'b0, fprec_q} : 32'd0;
+        12'h300: csr_rdata_int = {19'b0, mstatus_q[1:0], 3'b0, mstatus_q[2:2], 2'h0, mstatus_q[3:3], mstatus_q[4:4], 2'h0, mstatus_q[5:5]};
+        12'h301: csr_rdata_int = 32'h0;
+        12'h305: csr_rdata_int = {mtvec_q, 8'h0};
+        12'h341: csr_rdata_int = mepc_q;
+        12'h342: csr_rdata_int = {mcause_q[5], 26'b0, mcause_q[4:0]};
+        12'hF14: csr_rdata_int = {21'b0, cluster_id_i[5:0], 1'b0, core_id_i[3:0]};
+        12'h7B0: csr_rdata_int = hwlp_start_i[0];
+        12'h7B1: csr_rdata_int = hwlp_end_i[0];
+        12'h7B2: csr_rdata_int = hwlp_cnt_i[0];
+        12'h7B4: csr_rdata_int = hwlp_start_i[1];
+        12'h7B5: csr_rdata_int = hwlp_end_i[1];
+        12'h7B6: csr_rdata_int = hwlp_cnt_i[1];
+        12'h014: csr_rdata_int = {21'b0, cluster_id_i[5:0], 1'b0, core_id_i[3:0]};
+        12'hC10: csr_rdata_int = {30'h0, priv_lvl_q};
+        default: csr_rdata_int = 32'd0;
+    endcase
+end
+    end
+
+endgenerate
+generate
+    if(PULP_SECURE == 1) begin
+always @(*) begin
+    fflags_n = fflags_q;
+    frm_n = frm_q;
+    fprec_n = fprec_q;
+    epc_o = mepc_q;
+    mepc_n = mepc_q;
+    uepc_n = uepc_q;
+    mstatus_n = mstatus_q;
+    mcause_n = mcause_q;
+    ucause_n = ucause_q;
+    hwlp_we_o = 32'd0;
+    hwlp_regid_o = 32'd0;
+    exception_pc = pc_id_i;
+    priv_lvl_n = priv_lvl_q;
+    mtvec_n = mtvec_q;
+    utvec_n = utvec_q;
+    if(FPU) begin
+        if(fflags_we_i) begin
+            fflags_n = fflags_i | fflags_q;
+        end
+    end
+    case (csr_addr_i)
+        12'h001: if(csr_we_int) begin
+            fflags_n = FPU ? csr_wdata_int[(C_FFLAG - 1):0] : 32'd0;
+        end
+        12'h002: if(csr_we_int) begin
+            frm_n = FPU ? csr_wdata_int[(C_RM - 1):0] : 32'd0;
+        end
+        12'h003: if(csr_we_int) begin
+            fflags_n = FPU ? csr_wdata_int[(C_FFLAG - 1):0] : 32'd0;
+            frm_n = FPU ? csr_wdata_int[((C_RM + C_FFLAG) - 1):C_FFLAG] : 32'd0;
+        end
+        12'h006: if(csr_we_int) begin
+            fprec_n = FPU ? csr_wdata_int[(C_PC - 1):0] : 32'd0;
+        end
+        12'h300: if(csr_we_int) begin
+            mstatus_n = {csr_wdata_int[0], csr_wdata_int[3], csr_wdata_int[4], csr_wdata_int[7], csr_wdata_int[12:11]};
+        end
+        12'h305: if(csr_we_int) begin
+            mtvec_n = csr_wdata_int[31:8];
+        end
+        12'h341: if(csr_we_int) begin
+            mepc_n = csr_wdata_int;
+        end
+        12'h342: if(csr_we_int) begin
+            mcause_n = {csr_wdata_int[31], csr_wdata_int[4:0]};
+        end
+        12'h7B0: if(csr_we_int) begin
+            hwlp_we_o = 3'b001;
+            hwlp_regid_o = 1'b0;
+        end
+        12'h7B1: if(csr_we_int) begin
+            hwlp_we_o = 3'b010;
+            hwlp_regid_o = 1'b0;
+        end
+        12'h7B2: if(csr_we_int) begin
+            hwlp_we_o = 3'b100;
+            hwlp_regid_o = 1'b0;
+        end
+        12'h7B4: if(csr_we_int) begin
+            hwlp_we_o = 3'b001;
+            hwlp_regid_o = 1'b1;
+        end
+        12'h7B5: if(csr_we_int) begin
+            hwlp_we_o = 3'b010;
+            hwlp_regid_o = 1'b1;
+        end
+        12'h7B6: if(csr_we_int) begin
+            hwlp_we_o = 3'b100;
+            hwlp_regid_o = 1'b1;
+        end
+        12'h000: if(csr_we_int) begin
+            mstatus_n = {csr_wdata_int[0], mstatus_q[4:4], csr_wdata_int[4], mstatus_q[2:2], mstatus_q[1:0]};
+        end
+        12'h005: if(csr_we_int) begin
+            utvec_n = csr_wdata_int[31:8];
+        end
+        12'h041: if(csr_we_int) begin
+            uepc_n = csr_wdata_int;
+        end
+        12'h042: if(csr_we_int) begin
+            ucause_n = {csr_wdata_int[31], csr_wdata_int[4:0]};
+        end
+    endcase
+    case (1'b1)
+        csr_save_cause_i: begin
+            case (1'b1)
+                csr_save_if_i: exception_pc = pc_if_i;
+                csr_save_id_i: exception_pc = pc_id_i;
+                default: ;            endcase
+            case (priv_lvl_q)
+                PRIV_LVL_U: if(~is_irq) begin
+                    priv_lvl_n = PRIV_LVL_M;
+                    mstatus_n[2:2] = mstatus_q[5:5];
+                    mstatus_n[4:4] = 1'b0;
+                    mstatus_n[1:0] = PRIV_LVL_U;
+                    mepc_n = exception_pc;
+                    mcause_n = csr_cause_i;
+                end else begin
+                    if(~csr_irq_sec_i) begin
+                        priv_lvl_n = PRIV_LVL_U;
+                        mstatus_n[3:3] = mstatus_q[5:5];
+                        mstatus_n[5:5] = 1'b0;
+                        uepc_n = exception_pc;
+                        ucause_n = csr_cause_i;
+                    end else begin
+                        priv_lvl_n = PRIV_LVL_M;
+                        mstatus_n[2:2] = mstatus_q[5:5];
+                        mstatus_n[4:4] = 1'b0;
+                        mstatus_n[1:0] = PRIV_LVL_U;
+                        mepc_n = exception_pc;
+                        mcause_n = csr_cause_i;
+                    end
+                end
+                PRIV_LVL_M: begin
+                    priv_lvl_n = PRIV_LVL_M;
+                    mstatus_n[2:2] = mstatus_q[4:4];
+                    mstatus_n[4:4] = 1'b0;
+                    mstatus_n[1:0] = PRIV_LVL_M;
+                    mepc_n = exception_pc;
+                    mcause_n = csr_cause_i;
+                end
+                default: ;            endcase
+        end
+        csr_restore_uret_i: begin
+            mstatus_n[5:5] = mstatus_q[3:3];
+            priv_lvl_n = PRIV_LVL_U;
+            mstatus_n[3:3] = 1'b1;
+            epc_o = uepc_q;
+        end
+        csr_restore_mret_i: begin
+            case (mstatus_q[1:0])
+                PRIV_LVL_U: begin
+                    mstatus_n[5:5] = mstatus_q[2:2];
+                    priv_lvl_n = PRIV_LVL_U;
+                    mstatus_n[2:2] = 1'b1;
+                    mstatus_n[1:0] = PRIV_LVL_U;
+                end
+                PRIV_LVL_M: begin
+                    mstatus_n[4:4] = mstatus_q[2:2];
+                    priv_lvl_n = PRIV_LVL_M;
+                    mstatus_n[2:2] = 1'b1;
+                    mstatus_n[1:0] = PRIV_LVL_U;
+                end
+                default: ;            endcase
+            epc_o = mepc_q;
+        end
+        default: ;    endcase
+end
+    end else begin
+always @(*) begin
+    fflags_n = fflags_q;
+    frm_n = frm_q;
+    fprec_n = fprec_q;
+    epc_o = mepc_q;
+    mepc_n = mepc_q;
+    mstatus_n = mstatus_q;
+    mcause_n = mcause_q;
+    hwlp_we_o = 32'd0;
+    hwlp_regid_o = 32'd0;
+    exception_pc = pc_id_i;
+    priv_lvl_n = priv_lvl_q;
+    mtvec_n = mtvec_q;
+    if(FPU) begin
+        if(fflags_we_i) begin
+            fflags_n = fflags_i | fflags_q;
+        end
+    end
+    case (csr_addr_i)
+        12'h001: if(csr_we_int) begin
+            fflags_n = FPU ? csr_wdata_int[(C_FFLAG - 1):0] : 32'd0;
+        end
+        12'h002: if(csr_we_int) begin
+            frm_n = FPU ? csr_wdata_int[(C_RM - 1):0] : 32'd0;
+        end
+        12'h003: if(csr_we_int) begin
+            fflags_n = FPU ? csr_wdata_int[(C_FFLAG - 1):0] : 32'd0;
+            frm_n = FPU ? csr_wdata_int[((C_RM + C_FFLAG) - 1):C_FFLAG] : 32'd0;
+        end
+        12'h006: if(csr_we_int) begin
+            fprec_n = FPU ? csr_wdata_int[(C_PC - 1):0] : 32'd0;
+        end
+        12'h300: if(csr_we_int) begin
+            mstatus_n = {csr_wdata_int[0], csr_wdata_int[3], csr_wdata_int[4], csr_wdata_int[7], csr_wdata_int[12:11]};
+        end
+        12'h341: if(csr_we_int) begin
+            mepc_n = csr_wdata_int;
+        end
+        12'h342: if(csr_we_int) begin
+            mcause_n = {csr_wdata_int[31], csr_wdata_int[4:0]};
+        end
+        12'h7B0: if(csr_we_int) begin
+            hwlp_we_o = 3'b001;
+            hwlp_regid_o = 1'b0;
+        end
+        12'h7B1: if(csr_we_int) begin
+            hwlp_we_o = 3'b010;
+            hwlp_regid_o = 1'b0;
+        end
+        12'h7B2: if(csr_we_int) begin
+            hwlp_we_o = 3'b100;
+            hwlp_regid_o = 1'b0;
+        end
+        12'h7B4: if(csr_we_int) begin
+            hwlp_we_o = 3'b001;
+            hwlp_regid_o = 1'b1;
+        end
+        12'h7B5: if(csr_we_int) begin
+            hwlp_we_o = 3'b010;
+            hwlp_regid_o = 1'b1;
+        end
+        12'h7B6: if(csr_we_int) begin
+            hwlp_we_o = 3'b100;
+            hwlp_regid_o = 1'b1;
+        end
+    endcase
+    case (1'b1)
+        csr_save_cause_i: begin
+            case (1'b1)
+                csr_save_if_i: exception_pc = pc_if_i;
+                csr_save_id_i: exception_pc = pc_id_i;
+                default: ;            endcase
+            priv_lvl_n = PRIV_LVL_M;
+            mstatus_n[2:2] = mstatus_q[4:4];
+            mstatus_n[4:4] = 1'b0;
+            mstatus_n[1:0] = PRIV_LVL_M;
+            mepc_n = exception_pc;
+            mcause_n = csr_cause_i;
+        end
+        csr_restore_mret_i: begin
+            mstatus_n[4:4] = mstatus_q[2:2];
+            priv_lvl_n = PRIV_LVL_M;
+            mstatus_n[2:2] = 1'b1;
+            mstatus_n[1:0] = PRIV_LVL_M;
+            epc_o = mepc_q;
+        end
+        default: ;    endcase
+end
+    end
+
+endgenerate
+generate
+    if(APU == 1) begin
+assign PCCR_in[PERF_APU_ID] = (apu_typeconflict_i & (~apu_dep_i));
+assign PCCR_in[(PERF_APU_ID + 1)] = apu_contention_i;
+assign PCCR_in[(PERF_APU_ID + 2)] = (apu_dep_i & (~apu_contention_i));
+assign PCCR_in[(PERF_APU_ID + 3)] = apu_wb_i;
+    end
+
+endgenerate
+always @(*) begin
+    csr_wdata_int = csr_wdata_i;
+    csr_we_int = 1'b1;
+    case (csr_op_i)
+        CSR_OP_WRITE: csr_wdata_int = csr_wdata_i;
+        CSR_OP_SET: csr_wdata_int = csr_wdata_i | csr_rdata_o;
+        CSR_OP_CLEAR: csr_wdata_int = (~csr_wdata_i) & csr_rdata_o;
+        CSR_OP_NONE: begin
+            csr_wdata_int = csr_wdata_i;
+            csr_we_int = 1'b0;
+        end
+        default: ;    endcase
+end
+always @(*) begin
+    csr_rdata_o = csr_rdata_int;
+    if((is_pccr || is_pcer) || is_pcmr) begin
+        csr_rdata_o = perf_rdata;
+    end
+end
+always @(posedge clk or negedge rst_n) begin
+    if(~rst_n) begin
+        if(FPU) begin
+            frm_q <= 32'd0;
+            fflags_q <= 32'd0;
+            fprec_q <= 32'd0;
+        end
+        if(PULP_SECURE) begin
+            uepc_q <= 32'd0;
+            ucause_q <= 32'd0;
+            mtvec_reg_q <= 32'd0;
+            utvec_q <= 32'd0;
+        end
+        priv_lvl_q <= PRIV_LVL_M;
+        mstatus_q <= {1'b0, 1'b0, 1'b0, 1'b0, PRIV_LVL_M};
+        mepc_q <= 32'd0;
+        mcause_q <= 32'd0;
+    end else begin
+        if(FPU) begin
+            frm_q <= frm_n;
+            fflags_q <= fflags_n;
+            fprec_q <= fprec_n;
+        end
+        if(PULP_SECURE) begin
+            mstatus_q <= mstatus_n;
+            uepc_q <= uepc_n;
+            ucause_q <= ucause_n;
+            priv_lvl_q <= priv_lvl_n;
+            utvec_q <= utvec_n;
+            mtvec_reg_q <= mtvec_n;
+        end else begin
+            mstatus_q <= {1'b0, mstatus_n[4:4], 1'b0, mstatus_n[2:2], PRIV_LVL_M};
+            priv_lvl_q <= PRIV_LVL_M;
+        end
+        mepc_q <= mepc_n;
+        mcause_q <= mcause_n;
+    end
+end
+always @(*) begin
+    is_pccr = 1'b0;
+    is_pcmr = 1'b0;
+    is_pcer = 1'b0;
+    pccr_all_sel = 1'b0;
+    pccr_index = 32'd0;
+    perf_rdata = 32'd0;
+    if(csr_access_i) begin
+        case (csr_addr_i)
+            12'h7A0: begin
+                is_pcer = 1'b1;
+                perf_rdata[(N_PERF_COUNTERS - 1):0] = PCER_q;
+            end
+            12'h7A1: begin
+                is_pcmr = 1'b1;
+                perf_rdata[1:0] = PCMR_q;
+            end
+            12'h79F: begin
+                is_pccr = 1'b1;
+                pccr_all_sel = 1'b1;
+            end
+            default: ;        endcase
+        if(csr_addr_i[11:5] == 7'b0111100) begin
+            is_pccr = 1'b1;
+            pccr_index = csr_addr_i[4:0];
+            perf_rdata = PCCR_q[0];
+        end
+    end
+end
+always @(*) begin
+    PCCR_n[0] = PCCR_q[0];
+    if(PCCR_inc_q[0] && ((PCCR_q[0] != 32'hFFFFFFFF) || (~PCMR_q[1]))) begin
+        PCCR_n[0] = PCCR_q[0] + 1;
+    end
+    if(is_pccr) begin
+        case (csr_op_i)
+            CSR_OP_WRITE: PCCR_n[0] = csr_wdata_i;
+            CSR_OP_SET: PCCR_n[0] = csr_wdata_i | PCCR_q[0];
+            CSR_OP_CLEAR: PCCR_n[0] = csr_wdata_i & (~PCCR_q[0]);
+        endcase
+    end
+end
+always @(*) begin
+    PCMR_n = PCMR_q;
+    PCER_n = PCER_q;
+    if(is_pcmr) begin
+        case (csr_op_i)
+            CSR_OP_WRITE: PCMR_n = csr_wdata_i[1:0];
+            CSR_OP_SET: PCMR_n = csr_wdata_i[1:0] | PCMR_q;
+            CSR_OP_CLEAR: PCMR_n = csr_wdata_i[1:0] & (~PCMR_q);
+        endcase
+    end
+    if(is_pcer) begin
+        case (csr_op_i)
+            CSR_OP_WRITE: PCER_n = csr_wdata_i[(N_PERF_COUNTERS - 1):0];
+            CSR_OP_SET: PCER_n = csr_wdata_i[(N_PERF_COUNTERS - 1):0] | PCER_q;
+            CSR_OP_CLEAR: PCER_n = csr_wdata_i[(N_PERF_COUNTERS - 1):0] & (~PCER_q);
+        endcase
+    end
+end
+always @(posedge clk or negedge rst_n) begin
+    if(~rst_n) begin
+        id_valid_q <= 1'b0;
+        PCER_q <= 32'd0;
+        PCMR_q <= 2'h3;
+        for(i=0;i < N_PERF_REGS;i=i + 1)begin
+            PCCR_q[i] <= 32'd0;
+            PCCR_inc_q[i] <= 32'd0;
+        end
+    end else begin
+        id_valid_q <= id_valid_i;
+        PCER_q <= PCER_n;
+        PCMR_q <= PCMR_n;
+        for(i=0;i < N_PERF_REGS;i=i + 1)begin
+            PCCR_q[i] <= PCCR_n[i];
+            PCCR_inc_q[i] <= PCCR_inc[i];
+        end
+    end
+end
+endmodule
+

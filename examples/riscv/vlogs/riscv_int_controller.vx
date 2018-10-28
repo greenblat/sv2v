@@ -1,0 +1,62 @@
+module riscv_int_controller #( parameter PULP_SECURE = 0) (
+    input  clk
+    ,input  ctrl_ack_i
+    ,input  ctrl_kill_i
+    ,input [1:0] current_priv_lvl_i
+    ,input  irq_i
+    ,output [4:0] irq_id_ctrl_o
+    ,input [4:0] irq_id_i
+    ,output  irq_req_ctrl_o
+    ,output  irq_sec_ctrl_o
+    ,input  irq_sec_i
+    ,input  m_IE_i
+    ,input  rst_n
+    ,input  u_IE_i
+);
+localparam IDLE = 0;
+localparam PRIV_LVL_M = 2'b11;
+localparam IRQ_PENDING = 1;
+localparam PRIV_LVL_U = 2'b00;
+localparam IRQ_DONE = 2;
+reg [4:0] irq_id_q;
+wire  irq_enable_ext;
+wire [1:0] exc_ctrl_ns;
+reg  irq_sec_q;
+reg [1:0] exc_ctrl_cs;
+assign   irq_req_ctrl_o = exc_ctrl_cs == IRQ_PENDING;
+assign   irq_sec_ctrl_o = irq_sec_q;
+assign   irq_id_ctrl_o = irq_id_q;
+generate
+    if(PULP_SECURE) begin
+assign irq_enable_ext = (((u_IE_i | irq_sec_i) & (current_priv_lvl_i == PRIV_LVL_U)) | (m_IE_i & (current_priv_lvl_i == PRIV_LVL_M)));
+    end else begin
+assign irq_enable_ext = m_IE_i;
+    end
+
+endgenerate
+always @(posedge clk or negedge rst_n) begin
+    if(~rst_n) begin
+        irq_id_q <= 32'd0;
+        irq_sec_q <= 1'b0;
+        exc_ctrl_cs <= IDLE;
+    end else begin
+        case (exc_ctrl_cs)
+            IDLE: if(irq_enable_ext & irq_i) begin
+                exc_ctrl_cs <= IRQ_PENDING;
+                irq_id_q <= irq_id_i;
+                irq_sec_q <= irq_sec_i;
+            end
+            IRQ_PENDING: case (1'b1)
+                ctrl_ack_i: exc_ctrl_cs <= IRQ_DONE;
+                ctrl_kill_i: exc_ctrl_cs <= IDLE;
+                default: exc_ctrl_cs <= IRQ_PENDING;
+            endcase
+            IRQ_DONE: begin
+                irq_sec_q <= 1'b0;
+                exc_ctrl_cs <= IDLE;
+            end
+        endcase
+    end
+end
+endmodule
+

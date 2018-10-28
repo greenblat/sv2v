@@ -1,0 +1,7 @@
+info: yacc step0
+info: yacc step1
+info: exit state 0 1
+info: yacc step2
+info: yacc step3
+info: addmodule riscv_apu_disp (['riscv_apu_disp'])
+0: ERROR!! in none: net not defined for declareRegs "i"

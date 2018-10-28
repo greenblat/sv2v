@@ -1,0 +1,19 @@
+#! /bin/csh -f
+
+
+
+
+
+
+
+
+
+
+mvlg.py ../vlogs/riscv.mvlg all.files
+
+iverilog -f all.files -o tb.vvp tb.v
+
+setenv PYVERILOG "$*"
+vvp -M/Users/ilia/software/vpi -mvpi7 -lver.log tb.vvp $*
+
+

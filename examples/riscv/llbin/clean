@@ -1,0 +1,17 @@
+#! /bin/csh -f
+
+/bin/rm  filex0.v
+/bin/rm  filex1.v
+/bin/rm  file2.v
+/bin/rm  file3.v
+/bin/rm  file4.v
+/bin/rm  file33.v
+/bin/rm  lex.out
+/bin/rm  db0.pickle
+/bin/rm  yacc.log
+/bin/rm  database.dump
+/bin/rm  pymon.file
+
+
+
+

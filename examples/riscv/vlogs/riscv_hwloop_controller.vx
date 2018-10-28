@@ -1,0 +1,45 @@
+module riscv_hwloop_controller #( parameter N_REGS = 2) (
+    input [31:0] current_pc_i
+    ,input [(N_REGS - 1):0] [31:0] hwlp_counter_i
+    ,input [(N_REGS - 1):0] hwlp_dec_cnt_id_i
+    ,output reg [(N_REGS - 1):0] hwlp_dec_cnt_o
+    ,input [(N_REGS - 1):0] [31:0] hwlp_end_addr_i
+    ,output  hwlp_jump_o
+    ,input [(N_REGS - 1):0] [31:0] hwlp_start_addr_i
+    ,output reg [31:0] hwlp_targ_addr_o
+);
+reg [31:0] j;
+reg [(N_REGS - 1):0] pc_is_end_addr;
+genvar i;
+assign   hwlp_jump_o = |pc_is_end_addr;
+generate
+    for(i=0;i < N_REGS;i=i + 1)begin
+always @(*) begin
+    pc_is_end_addr[i] = 1'b0;
+    if(current_pc_i == hwlp_end_addr_i[i]) begin
+        if(hwlp_counter_i[i][31:2] != 30'h0) begin
+            pc_is_end_addr[i] = 1'b1;
+        end else begin
+            case (hwlp_counter_i[i][1:0])
+                2'b11: pc_is_end_addr[i] = 1'b1;
+                2'b10: pc_is_end_addr[i] = ~hwlp_dec_cnt_id_i[i];
+                2'b01,2'b00: pc_is_end_addr[i] = 1'b0;
+            endcase
+        end
+    end
+end
+    end
+
+endgenerate
+always @(*) begin
+    hwlp_targ_addr_o = 32'd0;
+    hwlp_dec_cnt_o = 32'd0;
+    for(j=0;j < N_REGS;j=j + 1)begin
+        if(pc_is_end_addr[j]) begin
+            hwlp_targ_addr_o = hwlp_start_addr_i[j];
+            hwlp_dec_cnt_o[j] = 1'b1;
+        end
+    end
+end
+endmodule
+

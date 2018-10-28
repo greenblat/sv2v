@@ -1,0 +1,9 @@
+mmmmmmmmmmmmmmmmmmmmmmmmmmm 
+reading file33.v file
+info: yacc step0
+info: yacc step1
+info: exit state 0 1
+info: yacc step2
+info: yacc step3
+info: addmodule riscv_debug_unit (['riscv_debug_unit'])
+locals ['riscv_debug_unit']

@@ -1,0 +1,15 @@
+mmmmmmmmmmmmmmmmmmmmmmmmmmm 
+reading file33.v file
+info: yacc step0
+info: yacc step1
+info: exit state 0 1
+info: yacc step2
+info: yacc step3
+info: addmodule riscv_mult (['riscv_mult'])
+locals ['riscv_mult']
+0: ERROR!! in none: partial ('declare', 'wire', 'dot_char_op_a', ('packed', (3, 0), (8, 0))) not recognized
+1: ERROR!! in none: partial ('declare', 'wire', 'dot_char_op_b', ('packed', (3, 0), (8, 0))) not recognized
+2: ERROR!! in none: partial ('declare', 'wire', 'dot_char_mul', ('packed', (3, 0), (17, 0))) not recognized
+3: ERROR!! in none: partial ('declare', 'wire', 'dot_short_op_a', ('packed', (1, 0), (16, 0))) not recognized
+4: ERROR!! in none: partial ('declare', 'wire', 'dot_short_op_b', ('packed', (1, 0), (16, 0))) not recognized
+5: ERROR!! in none: partial ('declare', 'wire', 'dot_short_mul', ('packed', (1, 0), (33, 0))) not recognized

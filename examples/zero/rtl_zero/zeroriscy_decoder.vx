@@ -1,0 +1,403 @@
+module zeroriscy_decoder #( parameter RV32M = 1) (
+    output reg [2:0] alu_op_a_mux_sel_o
+    ,output reg [2:0] alu_op_b_mux_sel_o
+    ,output reg [(ALU_OP_WIDTH - 1):0] alu_operator_o
+    ,output  branch_in_id_o
+    ,input  branch_mux_i
+    ,output reg  csr_access_o
+    ,output [1:0] csr_op_o
+    ,output reg  csr_status_o
+    ,output reg  data_load_event_o
+    ,input  data_misaligned_i
+    ,output reg [1:0] data_reg_offset_o
+    ,output  data_req_o
+    ,output reg  data_sign_extension_o
+    ,output reg [1:0] data_type_o
+    ,output reg  data_we_o
+    ,input  deassert_we_i
+    ,output  div_int_en_o
+    ,output reg  ebrk_insn_o
+    ,output reg  ecall_insn_o
+    ,input  illegal_c_insn_i
+    ,output reg  illegal_insn_o
+    ,output reg [0:0] imm_a_mux_sel_o
+    ,output reg [3:0] imm_b_mux_sel_o
+    ,input [31:0] instr_rdata_i
+    ,output  jump_in_id_o
+    ,input  jump_mux_i
+    ,output reg  mret_insn_o
+    ,output  mult_int_en_o
+    ,output reg [1:0] multdiv_operator_o
+    ,output reg [1:0] multdiv_signed_mode_o
+    ,output reg  pipe_flush_o
+    ,output  regfile_we_o
+);
+localparam ALU_SLTS = 6'b000010;
+localparam ALU_NE = 6'b001101;
+localparam ALU_SLTU = 6'b000011;
+localparam CSR_OP_CLEAR = 2'b11;
+localparam MD_OP_MULH = 2'b01;
+localparam OP_B_IMM = 3'b010;
+localparam MD_OP_MULL = 2'b00;
+localparam OP_A_REGA_OR_FWD = 3'b000;
+localparam OPCODE_JAL = 7'h6f;
+localparam OPCODE_LOAD = 7'h03;
+localparam ALU_SRA = 6'b100100;
+localparam OPCODE_JALR = 7'h67;
+localparam OP_B_REGB_OR_FWD = 3'b000;
+localparam MD_OP_DIV = 2'b10;
+localparam ALU_SRL = 6'b100101;
+localparam IMMB_S = 4'b0001;
+localparam IMMB_U = 4'b0010;
+localparam ALU_SLL = 6'b100111;
+localparam ALU_AND = 6'b010101;
+localparam ALU_OR = 6'b101110;
+localparam OPCODE_AUIPC = 7'h17;
+localparam ALU_EQ = 6'b001100;
+localparam IMMB_I = 4'b0000;
+localparam ALU_ADD = 6'b011000;
+localparam IMMA_ZERO = 1'b1;
+localparam MD_OP_REM = 2'b11;
+localparam ALU_OP_WIDTH = 6;
+localparam IMMA_Z = 1'b0;
+localparam IMMB_PCINCR = 4'b0011;
+localparam OP_A_IMM = 3'b010;
+localparam OP_A_CURRPC = 3'b001;
+localparam ALU_LTS = 6'b000000;
+localparam OPCODE_BRANCH = 7'h63;
+localparam ALU_LTU = 6'b000001;
+localparam ALU_SUB = 6'b011001;
+localparam OPCODE_SYSTEM = 7'h73;
+localparam IMMB_UJ = 4'b1100;
+localparam IMMB_SB = 4'b1101;
+localparam CSR_OP_WRITE = 2'b01;
+localparam ALU_XOR = 6'b101111;
+localparam OPCODE_STORE = 7'h23;
+localparam CSR_OP_SET = 2'b10;
+localparam OPCODE_LUI = 7'h37;
+localparam OPCODE_OP = 7'h33;
+localparam ALU_GEU = 6'b001011;
+localparam CSR_OP_NONE = 2'b00;
+localparam ALU_GES = 6'b001010;
+localparam OPCODE_OPIMM = 7'h13;
+reg  regfile_we;
+reg  csr_illegal;
+reg  jump_in_id;
+reg  div_int_en;
+reg  mult_int_en;
+reg [1:0] csr_op;
+reg  branch_in_id;
+reg  data_req;
+assign   regfile_we_o = deassert_we_i ? 1'b0 : regfile_we;
+assign   mult_int_en_o = RV32M ? deassert_we_i ? 1'b0 : mult_int_en : 1'b0;
+assign   div_int_en_o = RV32M ? deassert_we_i ? 1'b0 : div_int_en : 1'b0;
+assign   data_req_o = deassert_we_i ? 1'b0 : data_req;
+assign   csr_op_o = deassert_we_i ? CSR_OP_NONE : csr_op;
+assign   jump_in_id_o = deassert_we_i ? 1'b0 : jump_in_id;
+assign   branch_in_id_o = deassert_we_i ? 1'b0 : branch_in_id;
+always @(*) begin
+    jump_in_id = 1'b0;
+    branch_in_id = 1'b0;
+    alu_operator_o = ALU_SLTU;
+    alu_op_a_mux_sel_o = OP_A_REGA_OR_FWD;
+    alu_op_b_mux_sel_o = OP_B_REGB_OR_FWD;
+    imm_a_mux_sel_o = IMMA_ZERO;
+    imm_b_mux_sel_o = IMMB_I;
+    mult_int_en = 1'b0;
+    div_int_en = 1'b0;
+    multdiv_operator_o = MD_OP_MULL;
+    multdiv_signed_mode_o = 2'b00;
+    regfile_we = 1'b0;
+    csr_access_o = 1'b0;
+    csr_status_o = 1'b0;
+    csr_illegal = 1'b0;
+    csr_op = CSR_OP_NONE;
+    data_we_o = 1'b0;
+    data_type_o = 2'b00;
+    data_sign_extension_o = 1'b0;
+    data_reg_offset_o = 2'b00;
+    data_req = 1'b0;
+    data_load_event_o = 1'b0;
+    illegal_insn_o = 1'b0;
+    ebrk_insn_o = 1'b0;
+    mret_insn_o = 1'b0;
+    ecall_insn_o = 1'b0;
+    pipe_flush_o = 1'b0;
+    case (instr_rdata_i[6:0])
+        OPCODE_JAL: begin
+            jump_in_id = 1'b1;
+            if(jump_mux_i) begin
+                alu_op_a_mux_sel_o = OP_A_CURRPC;
+                alu_op_b_mux_sel_o = OP_B_IMM;
+                imm_b_mux_sel_o = IMMB_UJ;
+                alu_operator_o = ALU_ADD;
+                regfile_we = 1'b0;
+            end else begin
+                alu_op_a_mux_sel_o = OP_A_CURRPC;
+                alu_op_b_mux_sel_o = OP_B_IMM;
+                imm_b_mux_sel_o = IMMB_PCINCR;
+                alu_operator_o = ALU_ADD;
+                regfile_we = 1'b1;
+            end
+        end
+        OPCODE_JALR: begin
+            jump_in_id = 1'b1;
+            if(jump_mux_i) begin
+                alu_op_a_mux_sel_o = OP_A_REGA_OR_FWD;
+                alu_op_b_mux_sel_o = OP_B_IMM;
+                imm_b_mux_sel_o = IMMB_I;
+                alu_operator_o = ALU_ADD;
+                regfile_we = 1'b0;
+            end else begin
+                alu_op_a_mux_sel_o = OP_A_CURRPC;
+                alu_op_b_mux_sel_o = OP_B_IMM;
+                imm_b_mux_sel_o = IMMB_PCINCR;
+                alu_operator_o = ALU_ADD;
+                regfile_we = 1'b1;
+            end
+            if(instr_rdata_i[14:12] != 3'b0) begin
+                jump_in_id = 1'b0;
+                regfile_we = 1'b0;
+                illegal_insn_o = 1'b1;
+            end
+        end
+        OPCODE_BRANCH: begin
+            branch_in_id = 1'b1;
+            if(branch_mux_i) begin
+                case (instr_rdata_i[14:12])
+                    3'b000: alu_operator_o = ALU_EQ;
+                    3'b001: alu_operator_o = ALU_NE;
+                    3'b100: alu_operator_o = ALU_LTS;
+                    3'b101: alu_operator_o = ALU_GES;
+                    3'b110: alu_operator_o = ALU_LTU;
+                    3'b111: alu_operator_o = ALU_GEU;
+                    default: illegal_insn_o = 1'b1;
+                endcase
+            end else begin
+                alu_op_a_mux_sel_o = OP_A_CURRPC;
+                alu_op_b_mux_sel_o = OP_B_IMM;
+                imm_b_mux_sel_o = IMMB_SB;
+                alu_operator_o = ALU_ADD;
+                regfile_we = 1'b0;
+            end
+        end
+        OPCODE_STORE: begin
+            data_req = 1'b1;
+            data_we_o = 1'b1;
+            alu_operator_o = ALU_ADD;
+            if(~instr_rdata_i[14]) begin
+                imm_b_mux_sel_o = IMMB_S;
+                alu_op_b_mux_sel_o = OP_B_IMM;
+            end else begin
+                data_req = 1'b0;
+                data_we_o = 1'b0;
+                illegal_insn_o = 1'b1;
+            end
+            case (instr_rdata_i[13:12])
+                2'b00: data_type_o = 2'b10;
+                2'b01: data_type_o = 2'b01;
+                2'b10: data_type_o = 2'b00;
+                default: begin
+                    data_req = 1'b0;
+                    data_we_o = 1'b0;
+                    illegal_insn_o = 1'b1;
+                end
+            endcase
+        end
+        OPCODE_LOAD: begin
+            data_req = 1'b1;
+            regfile_we = 1'b1;
+            data_type_o = 2'b00;
+            alu_operator_o = ALU_ADD;
+            alu_op_b_mux_sel_o = OP_B_IMM;
+            imm_b_mux_sel_o = IMMB_I;
+            data_sign_extension_o = ~instr_rdata_i[14];
+            case (instr_rdata_i[13:12])
+                2'b00: data_type_o = 2'b10;
+                2'b01: data_type_o = 2'b01;
+                2'b10: data_type_o = 2'b00;
+                default: data_type_o = 2'b00;
+            endcase
+            if(instr_rdata_i[14:12] == 3'b111) begin
+                alu_op_b_mux_sel_o = OP_B_REGB_OR_FWD;
+                data_sign_extension_o = ~instr_rdata_i[30];
+                case (instr_rdata_i[31:25])
+                    7'b0000_000,7'b0100_000: data_type_o = 2'b10;
+                    7'b0001_000,7'b0101_000: data_type_o = 2'b01;
+                    7'b0010_000: data_type_o = 2'b00;
+                    default: illegal_insn_o = 1'b1;
+                endcase
+            end
+            if(instr_rdata_i[14:12] == 3'b110) begin
+                data_load_event_o = 1'b1;
+            end
+            if(instr_rdata_i[14:12] == 3'b011) begin
+                illegal_insn_o = 1'b1;
+            end
+        end
+        OPCODE_LUI: begin
+            alu_op_a_mux_sel_o = OP_A_IMM;
+            alu_op_b_mux_sel_o = OP_B_IMM;
+            imm_a_mux_sel_o = IMMA_ZERO;
+            imm_b_mux_sel_o = IMMB_U;
+            alu_operator_o = ALU_ADD;
+            regfile_we = 1'b1;
+        end
+        OPCODE_AUIPC: begin
+            alu_op_a_mux_sel_o = OP_A_CURRPC;
+            alu_op_b_mux_sel_o = OP_B_IMM;
+            imm_b_mux_sel_o = IMMB_U;
+            alu_operator_o = ALU_ADD;
+            regfile_we = 1'b1;
+        end
+        OPCODE_OPIMM: begin
+            alu_op_b_mux_sel_o = OP_B_IMM;
+            imm_b_mux_sel_o = IMMB_I;
+            regfile_we = 1'b1;
+            case (instr_rdata_i[14:12])
+                3'b000: alu_operator_o = ALU_ADD;
+                3'b010: alu_operator_o = ALU_SLTS;
+                3'b011: alu_operator_o = ALU_SLTU;
+                3'b100: alu_operator_o = ALU_XOR;
+                3'b110: alu_operator_o = ALU_OR;
+                3'b111: alu_operator_o = ALU_AND;
+                3'b001: begin
+                    alu_operator_o = ALU_SLL;
+                    if(instr_rdata_i[31:25] != 7'b0) begin
+                        illegal_insn_o = 1'b1;
+                    end
+                end
+                3'b101: if(instr_rdata_i[31:25] == 7'b0) begin
+                    alu_operator_o = ALU_SRL;
+                end else if(instr_rdata_i[31:25] == 7'b010_0000) begin
+                    alu_operator_o = ALU_SRA;
+                end else begin
+                    illegal_insn_o = 1'b1;
+                end
+                default: illegal_insn_o = 1'b1;
+            endcase
+        end
+        OPCODE_OP: begin
+            regfile_we = 1'b1;
+            if(instr_rdata_i[31]) begin
+                illegal_insn_o = 1'b1;
+            end else begin
+                if(~instr_rdata_i[28]) begin
+                    case ({instr_rdata_i[30:25], instr_rdata_i[14:12]})
+                        {6'b00_0000, 3'b000}: alu_operator_o = ALU_ADD;
+                        {6'b10_0000, 3'b000}: alu_operator_o = ALU_SUB;
+                        {6'b00_0000, 3'b010}: alu_operator_o = ALU_SLTS;
+                        {6'b00_0000, 3'b011}: alu_operator_o = ALU_SLTU;
+                        {6'b00_0000, 3'b100}: alu_operator_o = ALU_XOR;
+                        {6'b00_0000, 3'b110}: alu_operator_o = ALU_OR;
+                        {6'b00_0000, 3'b111}: alu_operator_o = ALU_AND;
+                        {6'b00_0000, 3'b001}: alu_operator_o = ALU_SLL;
+                        {6'b00_0000, 3'b101}: alu_operator_o = ALU_SRL;
+                        {6'b10_0000, 3'b101}: alu_operator_o = ALU_SRA;
+                        {6'b00_0001, 3'b000}: begin
+                            alu_operator_o = ALU_ADD;
+                            multdiv_operator_o = MD_OP_MULL;
+                            mult_int_en = 1'b1;
+                            multdiv_signed_mode_o = 2'b00;
+                            illegal_insn_o = RV32M ? 1'b0 : 1'b1;
+                        end
+                        {6'b00_0001, 3'b001}: begin
+                            alu_operator_o = ALU_ADD;
+                            multdiv_operator_o = MD_OP_MULH;
+                            mult_int_en = 1'b1;
+                            multdiv_signed_mode_o = 2'b11;
+                            illegal_insn_o = RV32M ? 1'b0 : 1'b1;
+                        end
+                        {6'b00_0001, 3'b010}: begin
+                            alu_operator_o = ALU_ADD;
+                            multdiv_operator_o = MD_OP_MULH;
+                            mult_int_en = 1'b1;
+                            multdiv_signed_mode_o = 2'b01;
+                            illegal_insn_o = RV32M ? 1'b0 : 1'b1;
+                        end
+                        {6'b00_0001, 3'b011}: begin
+                            alu_operator_o = ALU_ADD;
+                            multdiv_operator_o = MD_OP_MULH;
+                            mult_int_en = 1'b1;
+                            multdiv_signed_mode_o = 2'b00;
+                            illegal_insn_o = RV32M ? 1'b0 : 1'b1;
+                        end
+                        {6'b00_0001, 3'b100}: begin
+                            alu_operator_o = ALU_ADD;
+                            multdiv_operator_o = MD_OP_DIV;
+                            div_int_en = 1'b1;
+                            multdiv_signed_mode_o = 2'b11;
+                            illegal_insn_o = RV32M ? 1'b0 : 1'b1;
+                        end
+                        {6'b00_0001, 3'b101}: begin
+                            alu_operator_o = ALU_ADD;
+                            multdiv_operator_o = MD_OP_DIV;
+                            div_int_en = 1'b1;
+                            multdiv_signed_mode_o = 2'b00;
+                            illegal_insn_o = RV32M ? 1'b0 : 1'b1;
+                        end
+                        {6'b00_0001, 3'b110}: begin
+                            alu_operator_o = ALU_ADD;
+                            multdiv_operator_o = MD_OP_REM;
+                            div_int_en = 1'b1;
+                            multdiv_signed_mode_o = 2'b11;
+                            illegal_insn_o = RV32M ? 1'b0 : 1'b1;
+                        end
+                        {6'b00_0001, 3'b111}: begin
+                            alu_operator_o = ALU_ADD;
+                            multdiv_operator_o = MD_OP_REM;
+                            div_int_en = 1'b1;
+                            multdiv_signed_mode_o = 2'b00;
+                            illegal_insn_o = RV32M ? 1'b0 : 1'b1;
+                        end
+                        default: illegal_insn_o = 1'b1;
+                    endcase
+                end
+            end
+        end
+        OPCODE_SYSTEM: if(instr_rdata_i[14:12] == 3'b000) begin
+            case (instr_rdata_i[31:20])
+                12'h000: ecall_insn_o = 1'b1;
+                12'h001: ebrk_insn_o = 1'b1;
+                12'h302: mret_insn_o = 1'b1;
+                12'h105: pipe_flush_o = 1'b1;
+                default: illegal_insn_o = 1'b1;
+            endcase
+        end else begin
+            csr_access_o = 1'b1;
+            regfile_we = 1'b1;
+            alu_op_b_mux_sel_o = OP_B_IMM;
+            imm_a_mux_sel_o = IMMA_Z;
+            imm_b_mux_sel_o = IMMB_I;
+            if(instr_rdata_i[14]) begin
+                alu_op_a_mux_sel_o = OP_A_IMM;
+            end else begin
+                alu_op_a_mux_sel_o = OP_A_REGA_OR_FWD;
+            end
+            case (instr_rdata_i[13:12])
+                2'b01: csr_op = CSR_OP_WRITE;
+                2'b10: csr_op = CSR_OP_SET;
+                2'b11: csr_op = CSR_OP_CLEAR;
+                default: csr_illegal = 1'b1;
+            endcase
+            if(~csr_illegal) begin
+                if(instr_rdata_i[31:20] == 12'h300) begin
+                    csr_status_o = 1'b1;
+                end
+            end
+            illegal_insn_o = csr_illegal;
+        end
+        default: illegal_insn_o = 1'b1;
+    endcase
+    if(illegal_c_insn_i) begin
+        illegal_insn_o = 1'b1;
+    end
+    if(data_misaligned_i) begin
+        alu_op_a_mux_sel_o = OP_A_REGA_OR_FWD;
+        alu_op_b_mux_sel_o = OP_B_IMM;
+        imm_b_mux_sel_o = IMMB_PCINCR;
+        regfile_we = 1'b0;
+    end
+end
+endmodule
+

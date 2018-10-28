@@ -1,0 +1,145 @@
+module zeroriscy_prefetch_buffer(
+    input [31:0] addr_i
+    ,output [31:0] addr_o
+    ,input  branch_i
+    ,output  busy_o
+    ,input  clk
+    ,output reg [31:0] instr_addr_o
+    ,input  instr_gnt_i
+    ,input [31:0] instr_rdata_i
+    ,output reg  instr_req_o
+    ,input  instr_rvalid_i
+    ,output [31:0] rdata_o
+    ,input  ready_i
+    ,input  req_i
+    ,input  rst_n
+    ,output  valid_o
+);
+localparam IDLE = 0;
+localparam WAIT_ABORTED = 3;
+localparam WAIT_RVALID = 2;
+localparam WAIT_GNT = 1;
+wire  valid_stored;
+reg  fifo_clear;
+reg  fifo_valid;
+wire  fifo_ready;
+reg [1:0] NS;
+reg  addr_valid;
+reg [31:0] instr_addr_q;
+reg [1:0] CS;
+wire [31:0] fetch_addr;
+assign   busy_o = (CS != IDLE) || instr_req_o;
+assign   fetch_addr = {instr_addr_q[31:2], 2'b00} + 32'd4;
+zeroriscy_fetch_fifo  fifo_i (.clear_i(fifo_clear)
+ ,.clk(clk)
+ ,.in_addr_i(instr_addr_q)
+ ,.in_rdata_i(instr_rdata_i)
+ ,.in_ready_o(fifo_ready)
+ ,.in_valid_i(fifo_valid)
+ ,.out_addr_o(addr_o)
+ ,.out_rdata_o(rdata_o)
+ ,.out_ready_i(ready_i)
+ ,.out_valid_o(valid_o)
+ ,.out_valid_stored_o(valid_stored)
+ ,.rst_n(rst_n));
+always @(*) begin
+    fifo_clear = branch_i;
+end
+always @(*) begin
+    instr_req_o = 1'b0;
+    instr_addr_o = fetch_addr;
+    fifo_valid = 1'b0;
+    addr_valid = 1'b0;
+    NS = CS;
+    case (CS)
+        IDLE: begin
+            instr_addr_o = fetch_addr;
+            instr_req_o = 1'b0;
+            if(branch_i) begin
+                instr_addr_o = addr_i;
+            end
+            if(req_i & (fifo_ready | branch_i)) begin
+                instr_req_o = 1'b1;
+                addr_valid = 1'b1;
+                if(instr_gnt_i) begin
+                    NS = WAIT_RVALID;
+                end else begin
+                    NS = WAIT_GNT;
+                end
+            end
+        end
+        WAIT_GNT: begin
+            instr_addr_o = instr_addr_q;
+            instr_req_o = 1'b1;
+            if(branch_i) begin
+                instr_addr_o = addr_i;
+                addr_valid = 1'b1;
+            end
+            if(instr_gnt_i) begin
+                NS = WAIT_RVALID;
+            end else begin
+                NS = WAIT_GNT;
+            end
+        end
+        WAIT_RVALID: begin
+            instr_addr_o = fetch_addr;
+            if(branch_i) begin
+                instr_addr_o = addr_i;
+            end
+            if(req_i & (fifo_ready | branch_i)) begin
+                if(instr_rvalid_i) begin
+                    instr_req_o = 1'b1;
+                    fifo_valid = 1'b1;
+                    addr_valid = 1'b1;
+                    if(instr_gnt_i) begin
+                        NS = WAIT_RVALID;
+                    end else begin
+                        NS = WAIT_GNT;
+                    end
+                end else begin
+                    if(branch_i) begin
+                        addr_valid = 1'b1;
+                        NS = WAIT_ABORTED;
+                    end
+                end
+            end else begin
+                if(instr_rvalid_i) begin
+                    fifo_valid = 1'b1;
+                    NS = IDLE;
+                end
+            end
+        end
+        WAIT_ABORTED: begin
+            instr_addr_o = instr_addr_q;
+            if(branch_i) begin
+                instr_addr_o = addr_i;
+                addr_valid = 1'b1;
+            end
+            if(instr_rvalid_i) begin
+                instr_req_o = 1'b1;
+                if(instr_gnt_i) begin
+                    NS = WAIT_RVALID;
+                end else begin
+                    NS = WAIT_GNT;
+                end
+            end
+        end
+        default: begin
+            NS = IDLE;
+            instr_req_o = 1'b0;
+        end
+    endcase
+end
+always @(posedge clk or negedge rst_n) begin
+    if(~rst_n) begin
+        CS <= IDLE;
+        instr_addr_q <= 32'd0;
+    end else begin
+        CS <= NS;
+        if(addr_valid) begin
+            instr_addr_q <= instr_addr_o;
+        end
+    end
+end
+endmodule
+

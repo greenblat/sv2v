@@ -1,0 +1,102 @@
+module riscv_prefetch_L0_buffer
+    parameter RDATA_IN_WIDTH 128
+    net do_hwlp_int ('reg', 0)
+    net hwlp_is_crossword ('wire', 0)
+    net addr_q ('reg', (31, 0))
+    net hwlp_aligned_is_compressed ('wire', 0)
+    net valid_L0 ('wire', 0)
+    net addr_int ('reg', (31, 0))
+    net unaligned_is_compressed ('wire', 0)
+    net next_valid ('wire', 0)
+    net hwlp_unaligned_is_compressed ('wire', 0)
+    net rdata_last_q ('reg', (31, 0))
+    net addr_i ('input', (31, 0))
+    net addr_n ('reg', (31, 0))
+    net addr_o ('output', (31, 0))
+    net next_upper_compressed ('wire', 0)
+    net fetch_valid ('wire', 0)
+    net instr_gnt_i ('input', 0)
+    net use_last ('reg', 0)
+    net clk ('input', 0)
+    net fetch_gnt ('wire', 0)
+    net aligned_is_compressed ('wire', 0)
+    net do_fetch ('reg', 0)
+    net is_hwlp_n ('reg', 0)
+    net is_hwlp_o ('output', 0)
+    net fetch_possible ('wire', 0)
+    net is_hwlp_q ('reg', 0)
+    net upper_is_compressed ('wire', 0)
+    net valid ('reg', 0)
+    net rdata ('wire', (31, 0))
+    net ready_i ('input', 0)
+    net next_is_crossword ('wire', 0)
+    net NS ('reg', (3, 0))
+    net rst_n ('input', 0)
+    net hwloop_i ('input', 0)
+    net is_crossword ('wire', 0)
+    net save_rdata_last ('reg', 0)
+    net save_rdata_hwlp ('reg', 0)
+    net branch_i ('input', 0)
+    net instr_req_o ('output', 0)
+    net hwloop_target_i ('input', (31, 0))
+    net instr_addr_o ('output', (31, 0))
+    net rdata_o ('output', (31, 0))
+    net busy_o ('output', 0)
+    net CS ('reg', (3, 0))
+    net req_i ('input', 0)
+    net valid_o ('output', 0)
+    net instr_rdata_i ('input', ('packed', (['-', ['/', 'RDATA_IN_WIDTH', 32], 1], 0), (31, 0)))
+    net busy_L0 ('wire', 0)
+    net rdata_L0 ('wire', ('packed', (['-', ['/', 'RDATA_IN_WIDTH', 32], 1], 0), (31, 0)))
+    net addr_aligned_next ('wire', (31, 0))
+    net do_hwlp ('reg', 0)
+    net rdata_unaligned ('reg', (31, 0))
+    net instr_rvalid_i ('input', 0)
+    net use_hwlp ('reg', 0)
+    net addr_L0 ('wire', (31, 0))
+    net addr_real_next ('wire', (31, 0))
+    assign ('rdata', ['question', ['||', 'use_last', 'use_hwlp'], 'rdata_last_q', ['subbit', 'rdata_L0', ['subbus', 'addr_o', [3, 2]]]], '', '')
+    assign (['subbus', 'rdata_unaligned', (15, 0)], ['subbus', 'rdata', [31, 16]], '', '')
+    assign ('unaligned_is_compressed', ['!=', ['subbus', 'rdata', [17, 16]], ['bin', '2', '11']], '', '')
+    assign ('aligned_is_compressed', ['!=', ['subbus', 'rdata', [1, 0]], ['bin', '2', '11']], '', '')
+    assign ('upper_is_compressed', ['!=', ['sub_slice', 'rdata_L0', 3, (17, 16)], ['bin', '2', '11']], '', '')
+    assign ('is_crossword', ['&&', ['==', ['subbus', 'addr_o', [3, 1]], ['bin', '3', '111']], ['~', 'upper_is_compressed']], '', '')
+    assign ('next_is_crossword', ['||', ['&&', ['&&', ['==', ['subbus', 'addr_o', [3, 1]], ['bin', '3', '110']], 'aligned_is_compressed'], ['~', 'upper_is_compressed']], ['&&', ['&&', ['==', ['subbus', 'addr_o', [3, 1]], ['bin', '3', '101']], ['~', 'unaligned_is_compressed']], ['~', 'upper_is_compressed']]], '', '')
+    assign ('next_upper_compressed', ['||', ['&&', ['&&', ['==', ['subbus', 'addr_o', [3, 1]], ['bin', '3', '110']], 'aligned_is_compressed'], 'upper_is_compressed'], ['&&', ['&&', ['==', ['subbus', 'addr_o', [3, 1]], ['bin', '3', '101']], ['~', 'unaligned_is_compressed']], 'upper_is_compressed']], '', '')
+    assign ('next_valid', ['&&', ['&&', ['||', ['!=', ['subbus', 'addr_o', [3, 2]], ['bin', '2', '11']], 'next_upper_compressed'], ['~', 'next_is_crossword']], 'valid'], '', '')
+    assign ('fetch_possible', ['==', ['subbus', 'addr_o', [3, 2]], ['bin', '2', '11']], '', '')
+    assign ('addr_aligned_next', ['+', ['curly', ['subbus', 'addr_o', [31, 2]], ['bin', '2', '00']], ['hex', '32', '4']], '', '')
+    assign ('addr_real_next', ['question', 'next_is_crossword', ['+', ['curly', ['subbus', 'addr_o', [31, 4]], ['bin', '4', '0000']], ['hex', '32', '16']], ['+', ['curly', ['subbus', 'addr_o', [31, 2]], ['bin', '2', '00']], ['hex', '32', '4']]], '', '')
+    assign ('hwlp_unaligned_is_compressed', ['!=', ['sub_slice', 'rdata_L0', 2, (17, 16)], ['bin', '2', '11']], '', '')
+    assign ('hwlp_aligned_is_compressed', ['!=', ['sub_slice', 'rdata_L0', 3, (1, 0)], ['bin', '2', '11']], '', '')
+    assign ('hwlp_is_crossword', ['&&', ['==', ['subbus', 'hwloop_target_i', [3, 1]], ['bin', '3', '111']], ['~', 'upper_is_compressed']], '', '')
+    assign ('rdata_o', ['question', ['||', ['~', ['subbit', 'addr_o', 1]], 'use_hwlp'], 'rdata', 'rdata_unaligned'], '', '')
+    assign ('valid_o', ['&', 'valid', ['~', 'branch_i']], '', '')
+    assign ('addr_o', 'addr_q', '', '')
+    assign ('is_hwlp_o', ['&', 'is_hwlp_q', ['~', 'branch_i']], '', '')
+    assign ('busy_o', 'busy_L0', '', '')
+    always ['*', ['list', ['case', ['subbus', 'addr_o', (3, 2)], [[[['bin', '2', '00']], ['list', ['=', ['subbus', 'rdata_unaligned', (31, 16)], ['sub_slice', 'rdata_L0', 1, (15, 0)]]]], [[['bin', '2', '01']], ['list', ['=', ['subbus', 'rdata_unaligned', (31, 16)], ['sub_slice', 'rdata_L0', 2, (15, 0)]]]], [[['bin', '2', '10']], ['list', ['=', ['subbus', 'rdata_unaligned', (31, 16)], ['sub_slice', 'rdata_L0', 3, (15, 0)]]]], [[['bin', '2', '11']], ['list', ['=', ['subbus', 'rdata_unaligned', (31, 16)], ['sub_slice', 'rdata_L0', 0, (15, 0)]]]]]]], 'always']
+    always ['*', ['list', ['=', 'addr_int', 'addr_o'], ['if', 'ready_i', ['list', ['ifelse', ['subbit', 'addr_o', 1], ['list', ['ifelse', 'unaligned_is_compressed', ['list', ['=', 'addr_int', ['curly', ['subbus', 'addr_aligned_next', [31, 2]], ['bin', '2', '00']]]], ['list', ['=', 'addr_int', ['curly', ['subbus', 'addr_aligned_next', [31, 2]], ['bin', '2', '10']]]]]], ['list', ['ifelse', 'aligned_is_compressed', ['list', ['=', 'addr_int', ['curly', ['subbus', 'addr_o', [31, 2]], ['bin', '2', '10']]]], ['list', ['=', 'addr_int', ['curly', ['subbus', 'addr_aligned_next', [31, 2]], ['bin', '2', '00']]]]]]]]]], 'always']
+    always ['*', ['list', ['=', 'NS', 'CS'], ['=', 'do_fetch', ['bin', '1', '0']], ['=', 'do_hwlp', ['bin', '1', '0']], ['=', 'do_hwlp_int', ['bin', '1', '0']], ['=', 'use_last', ['bin', '1', '0']], ['=', 'use_hwlp', ['bin', '1', '0']], ['=', 'save_rdata_last', ['bin', '1', '0']], ['=', 'save_rdata_hwlp', ['bin', '1', '0']], ['=', 'valid', ['bin', '1', '0']], ['=', 'addr_n', 'addr_int'], ['=', 'is_hwlp_n', 'is_hwlp_q'], ['if', 'ready_i', ['=', 'is_hwlp_n', ['bin', '1', '0']]], ['case', 'CS', [[['IDLE'], ['empty_begin_end']], [['BRANCHED'], ['list', ['=', 'valid', ['bin', '1', '0']], ['=', 'do_fetch', 'fetch_possible'], ['if', ['&&', 'fetch_valid', ['~', 'is_crossword']], ['=', 'valid', ['bin', '1', '1']]], ['ifelse', 'ready_i', ['list', ['ifelse', 'hwloop_i', ['list', ['=', 'addr_n', 'addr_o'], ['=', 'NS', 'HWLP_WAIT_GNT']], ['list', ['ifelse', 'next_valid', ['list', ['ifelse', 'fetch_gnt', ['list', ['=', 'save_rdata_last', ['bin', '1', '1']], ['=', 'NS', 'VALID_GRANTED']], ['=', 'NS', 'VALID']]], ['ifelse', 'next_is_crossword', ['list', ['ifelse', 'fetch_gnt', ['list', ['=', 'save_rdata_last', ['bin', '1', '1']], ['=', 'NS', 'NOT_VALID_CROSS_GRANTED']], ['list', ['=', 'NS', 'NOT_VALID_CROSS']]]], ['list', ['ifelse', 'fetch_gnt', ['=', 'NS', 'NOT_VALID_GRANTED'], ['=', 'NS', 'NOT_VALID']]]]]]]], ['list', ['if', 'fetch_valid', ['list', ['ifelse', 'is_crossword', ['list', ['=', 'save_rdata_last', ['bin', '1', '1']], ['ifelse', 'fetch_gnt', ['=', 'NS', 'NOT_VALID_CROSS_GRANTED'], ['=', 'NS', 'NOT_VALID_CROSS']]], ['list', ['ifelse', 'fetch_gnt', ['list', ['=', 'save_rdata_last', ['bin', '1', '1']], ['=', 'NS', 'VALID_GRANTED']], ['=', 'NS', 'VALID']]]]]]]]]], [['NOT_VALID'], ['list', ['=', 'do_fetch', ['bin', '1', '1']], ['if', 'fetch_gnt', ['=', 'NS', 'NOT_VALID_GRANTED']]]], [['NOT_VALID_GRANTED'], ['list', ['=', 'valid', 'fetch_valid'], ['=', 'do_hwlp', 'hwloop_i'], ['if', 'fetch_valid', ['=', 'NS', 'VALID']]]], [['NOT_VALID_CROSS'], ['list', ['=', 'do_fetch', ['bin', '1', '1']], ['if', 'fetch_gnt', ['list', ['=', 'save_rdata_last', ['bin', '1', '1']], ['=', 'NS', 'NOT_VALID_CROSS_GRANTED']]]]], [['NOT_VALID_CROSS_GRANTED'], ['list', ['=', 'valid', 'fetch_valid'], ['=', 'use_last', ['bin', '1', '1']], ['=', 'do_hwlp', 'hwloop_i'], ['if', 'fetch_valid', ['list', ['ifelse', 'ready_i', ['=', 'NS', 'VALID'], ['=', 'NS', 'VALID_CROSS']]]]]], [['VALID'], ['list', ['=', 'valid', ['bin', '1', '1']], ['=', 'do_fetch', 'fetch_possible'], ['=', 'do_hwlp', 'hwloop_i'], ['ifelse', 'ready_i', ['list', ['ifelse', 'next_is_crossword', ['list', ['=', 'do_fetch', ['bin', '1', '1']], ['ifelse', 'fetch_gnt', ['list', ['=', 'save_rdata_last', ['bin', '1', '1']], ['=', 'NS', 'NOT_VALID_CROSS_GRANTED']], ['list', ['=', 'NS', 'NOT_VALID_CROSS']]]], ['ifelse', ['~', 'next_valid'], ['list', ['ifelse', 'fetch_gnt', ['=', 'NS', 'NOT_VALID_GRANTED'], ['=', 'NS', 'NOT_VALID']]], ['list', ['if', 'fetch_gnt', ['list', ['if', 'next_upper_compressed', ['list', ['=', 'save_rdata_last', ['bin', '1', '1']], ['=', 'NS', 'VALID_GRANTED']]]]]]]]], ['list', ['if', 'fetch_gnt', ['list', ['=', 'save_rdata_last', ['bin', '1', '1']], ['=', 'NS', 'VALID_GRANTED']]]]]]], [['VALID_CROSS'], ['list', ['=', 'valid', ['bin', '1', '1']], ['=', 'use_last', ['bin', '1', '1']], ['=', 'do_hwlp', 'hwloop_i'], ['if', 'ready_i', ['=', 'NS', 'VALID']]]], [['VALID_GRANTED'], ['list', ['=', 'valid', ['bin', '1', '1']], ['=', 'use_last', ['bin', '1', '1']], ['=', 'do_hwlp', 'hwloop_i'], ['ifelse', 'ready_i', ['list', ['ifelse', 'fetch_valid', ['list', ['ifelse', 'next_is_crossword', ['=', 'NS', 'VALID_CROSS'], ['ifelse', 'next_upper_compressed', ['=', 'NS', 'VALID_FETCH_DONE'], ['=', 'NS', 'VALID']]]], ['list', ['ifelse', 'next_is_crossword', ['=', 'NS', 'NOT_VALID_CROSS_GRANTED'], ['ifelse', 'next_upper_compressed', ['=', 'NS', 'VALID_GRANTED'], ['=', 'NS', 'NOT_VALID_GRANTED']]]]]], ['list', ['if', 'fetch_valid', ['=', 'NS', 'VALID_FETCH_DONE']]]]]], [['VALID_FETCH_DONE'], ['list', ['=', 'valid', ['bin', '1', '1']], ['=', 'use_last', ['bin', '1', '1']], ['=', 'do_hwlp', 'hwloop_i'], ['if', 'ready_i', ['list', ['ifelse', 'next_is_crossword', ['=', 'NS', 'VALID_CROSS'], ['ifelse', 'next_upper_compressed', ['=', 'NS', 'VALID_FETCH_DONE'], ['=', 'NS', 'VALID']]]]]]], [['HWLP_WAIT_GNT'], ['list', ['=', 'do_hwlp_int', ['bin', '1', '1']], ['if', 'fetch_gnt', ['list', ['=', 'is_hwlp_n', ['bin', '1', '1']], ['=', 'addr_n', 'hwloop_target_i'], ['=', 'NS', 'BRANCHED']]]]], [['HWLP_GRANTED'], ['list', ['=', 'valid', ['bin', '1', '1']], ['=', 'use_hwlp', ['bin', '1', '1']], ['ifelse', 'ready_i', ['list', ['=', 'addr_n', 'hwloop_target_i'], ['ifelse', 'fetch_valid', ['list', ['=', 'is_hwlp_n', ['bin', '1', '1']], ['ifelse', 'hwlp_is_crossword', ['list', ['=', 'NS', 'NOT_VALID_CROSS']], ['list', ['=', 'NS', 'VALID']]]], ['list', ['=', 'NS', 'HWLP_GRANTED_WAIT']]]], ['list', ['if', 'fetch_valid', ['=', 'NS', 'HWLP_FETCH_DONE']]]]]], [['HWLP_GRANTED_WAIT'], ['list', ['=', 'use_hwlp', ['bin', '1', '1']], ['if', 'fetch_valid', ['list', ['=', 'is_hwlp_n', ['bin', '1', '1']], ['ifelse', ['&&', ['==', ['subbus', 'addr_L0', [3, 1]], ['bin', '3', '111']], ['~', 'upper_is_compressed']], ['list', ['=', 'NS', 'NOT_VALID_CROSS']], ['list', ['=', 'NS', 'VALID']]]]]]], [['HWLP_FETCH_DONE'], ['list', ['=', 'valid', ['bin', '1', '1']], ['=', 'use_hwlp', ['bin', '1', '1']], ['if', 'ready_i', ['list', ['=', 'is_hwlp_n', ['bin', '1', '1']], ['=', 'addr_n', 'hwloop_target_i'], ['ifelse', 'hwlp_is_crossword', ['list', ['=', 'NS', 'NOT_VALID_CROSS']], ['list', ['=', 'NS', 'VALID']]]]]]]]], ['ifelse', 'branch_i', ['list', ['=', 'is_hwlp_n', ['bin', '1', '0']], ['=', 'addr_n', 'addr_i'], ['=', 'NS', 'BRANCHED']], ['if', 'hwloop_i', ['list', ['if', 'do_hwlp', ['list', ['ifelse', 'ready_i', ['list', ['ifelse', 'fetch_gnt', ['list', ['=', 'is_hwlp_n', ['bin', '1', '1']], ['=', 'addr_n', 'hwloop_target_i'], ['=', 'NS', 'BRANCHED']], ['list', ['=', 'addr_n', 'addr_o'], ['=', 'NS', 'HWLP_WAIT_GNT']]]], ['list', ['if', 'fetch_gnt', ['list', ['=', 'save_rdata_hwlp', ['bin', '1', '1']], ['=', 'NS', 'HWLP_GRANTED']]]]]]]]]]], 'always']
+    always [['list', ['edge', 'posedge', 'clk'], ['edge', 'negedge', 'rst_n']], ['list', ['ifelse', ['~', 'rst_n'], ['list', ['<=', 'addr_q', ['dig', 32, '0']], ['<=', 'is_hwlp_q', ['bin', '1', '0']], ['<=', 'CS', 'IDLE'], ['<=', 'rdata_last_q', ['dig', 32, '0']]], ['list', ['<=', 'addr_q', 'addr_n'], ['<=', 'is_hwlp_q', 'is_hwlp_n'], ['<=', 'CS', 'NS'], ['ifelse', 'save_rdata_hwlp', ['<=', 'rdata_last_q', 'rdata_o'], ['if', 'save_rdata_last', ['list', ['ifelse', 'ready_i', ['list', ['<=', 'rdata_last_q', ['subbit', 'rdata_L0', 3]]], ['list', ['<=', 'rdata_last_q', 'rdata']]]]]]]]], 'always']
+instance riscv_L0_buffer L0_buffer_i
+      conn pin=instr_rdata_i sig=instr_rdata_i
+      conn pin=rst_n sig=rst_n
+      conn pin=clk sig=clk
+      conn pin=instr_gnt_i sig=instr_gnt_i
+      conn pin=prefetch_addr_i sig=addr_real_next
+      conn pin=branch_addr_i sig=addr_i
+      conn pin=branch_i sig=branch_i
+      conn pin=instr_rvalid_i sig=instr_rvalid_i
+      conn pin=instr_req_o sig=instr_req_o
+      conn pin=addr_o sig=addr_L0
+      conn pin=fetch_valid_o sig=fetch_valid
+      conn pin=instr_addr_o sig=instr_addr_o
+      conn pin=rdata_o sig=rdata_L0
+      conn pin=fetch_gnt_o sig=fetch_gnt
+      conn pin=busy_o sig=busy_L0
+      conn pin=hwlp_addr_i sig=hwloop_target_i
+      conn pin=prefetch_i sig=do_fetch
+      conn pin=hwlp_i sig=['|', 'do_hwlp', 'do_hwlp_int']
+      conn pin=valid_o sig=valid_L0
+endmodule

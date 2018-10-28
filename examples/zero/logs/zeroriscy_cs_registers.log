@@ -1,0 +1,47 @@
+mmmmmmmmmmmmmmmmmmmmmmmmmmm 
+reading file33.v file
+info: yacc step0
+info: yacc step1
+info: exit state 0 1
+info: yacc step2
+info: yacc step3
+info: addmodule zeroriscy_cs_registers (['zeroriscy_cs_registers'])
+>>>>>>>> mpp (1, 0)
+>>>>>>>> mpie (2, 2)
+>>>>>>>> mie (3, 3)
+>>>>>>>> mpp (1, 0)
+>>>>>>>> mpie (2, 2)
+>>>>>>>> mie (3, 3)
+>>>>>>>> mpp (1, 0)
+>>>>>>>> mpie (2, 2)
+>>>>>>>> mie (3, 3)
+>>>>>>>> mpp (1, 0)
+>>>>>>>> mpie (2, 2)
+>>>>>>>> mie (3, 3)
+>>>>>>>> mpp (1, 0)
+>>>>>>>> mpie (2, 2)
+>>>>>>>> mie (3, 3)
+>>>>>>>> mpp (1, 0)
+>>>>>>>> mpie (2, 2)
+>>>>>>>> mie (3, 3)
+>>>>>>>> mpp (1, 0)
+>>>>>>>> mpie (2, 2)
+>>>>>>>> mie (3, 3)
+>>>>>>>> mpp (1, 0)
+>>>>>>>> mpie (2, 2)
+>>>>>>>> mie (3, 3)
+>>>>>>>> mpp (1, 0)
+>>>>>>>> mpie (2, 2)
+>>>>>>>> mie (3, 3)
+>>>>>>>> mpp (1, 0)
+>>>>>>>> mpie (2, 2)
+>>>>>>>> mie (3, 3)
+>>>>>>>> mpp (1, 0)
+>>>>>>>> mpie (2, 2)
+>>>>>>>> mie (3, 3)
+>>>>>>>> mpp (1, 0)
+>>>>>>>> mpie (2, 2)
+>>>>>>>> mie (3, 3)
+locals ['zeroriscy_cs_registers']
+0: ERROR!! in none: net not defined for declareRegs "gi"
+1: ERROR!! in none: partial genvar not recognized

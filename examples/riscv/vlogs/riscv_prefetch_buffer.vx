@@ -1,0 +1,256 @@
+module riscv_prefetch_buffer(
+    input [31:0] addr_i
+    ,output [31:0] addr_o
+    ,input  branch_i
+    ,output  busy_o
+    ,input  clk
+    ,input  hwloop_i
+    ,input [31:0] hwloop_target_i
+    ,output  hwlp_branch_o
+    ,output reg [31:0] instr_addr_o
+    ,input  instr_gnt_i
+    ,input [31:0] instr_rdata_i
+    ,output reg  instr_req_o
+    ,input  instr_rvalid_i
+    ,output  is_hwlp_o
+    ,output [31:0] rdata_o
+    ,input  ready_i
+    ,input  req_i
+    ,input  rst_n
+    ,output  valid_o
+);
+localparam WAIT_ABORTED = 3;
+localparam WAIT_GNT = 1;
+localparam HWLP_UNALIGNED_COMPRESSED = 4;
+localparam HWLP_NONE = 0;
+localparam IDLE = 0;
+localparam HWLP_FETCHING = 2;
+localparam WAIT_RVALID = 2;
+localparam HWLP_DONE = 3;
+localparam HWLP_IN = 1;
+reg [2:0] hwlp_NS;
+wire  unaligned_is_compressed;
+wire  valid_stored;
+reg  hwlp_branch;
+reg  fifo_clear;
+wire  fifo_ready;
+reg [1:0] NS;
+reg  addr_valid;
+reg [31:0] instr_addr_q;
+reg  fetch_is_hwlp;
+reg [1:0] CS;
+reg  fifo_valid;
+reg [2:0] hwlp_CS;
+wire [31:0] fetch_addr;
+reg  hwlp_masked;
+reg  fifo_hwlp;
+reg  hwloop_speculative;
+assign   busy_o = (CS != IDLE) || instr_req_o;
+assign   fetch_addr = {instr_addr_q[31:2], 2'b00} + 32'd4;
+assign   hwlp_branch_o = hwlp_branch;
+riscv_fetch_fifo  fifo_i (.clear_i(fifo_clear)
+ ,.clk(clk)
+ ,.in_addr_i(instr_addr_q)
+ ,.in_is_hwlp_i(fifo_hwlp)
+ ,.in_rdata_i(instr_rdata_i)
+ ,.in_ready_o(fifo_ready)
+ ,.in_replace2_i(fifo_hwlp)
+ ,.in_valid_i(fifo_valid)
+ ,.out_addr_o(addr_o)
+ ,.out_is_hwlp_o(is_hwlp_o)
+ ,.out_rdata_o(rdata_o)
+ ,.out_ready_i(ready_i)
+ ,.out_valid_o(valid_o)
+ ,.out_valid_stored_o(valid_stored)
+ ,.rst_n(rst_n)
+ ,.unaligned_is_compressed_o(unaligned_is_compressed));
+always @(*) begin
+    hwlp_NS = hwlp_CS;
+    fifo_hwlp = 1'b0;
+    fifo_clear = 1'b0;
+    hwlp_branch = 1'b0;
+    hwloop_speculative = 1'b0;
+    hwlp_masked = 1'b0;
+    case (hwlp_CS)
+        HWLP_NONE: if(hwloop_i) begin
+            hwlp_masked = ~instr_addr_q[1];
+            if((valid_o & unaligned_is_compressed) & instr_addr_q[1]) begin
+                hwlp_NS = HWLP_UNALIGNED_COMPRESSED;
+                hwloop_speculative = 1'b1;
+            end else begin
+                if(fetch_is_hwlp) begin
+                    hwlp_NS = HWLP_FETCHING;
+                end else begin
+                    hwlp_NS = HWLP_IN;
+                end
+            end
+            if(ready_i) begin
+                fifo_clear = 1'b1;
+            end
+        end else begin
+            hwlp_masked = 1'b0;
+        end
+        HWLP_UNALIGNED_COMPRESSED: begin
+            hwlp_branch = 1'b1;
+            hwlp_NS = HWLP_FETCHING;
+            fifo_clear = 1'b1;
+        end
+        HWLP_IN: begin
+            hwlp_masked = 1'b1;
+            if(fetch_is_hwlp) begin
+                hwlp_NS = HWLP_FETCHING;
+            end
+            if(ready_i) begin
+                fifo_clear = 1'b1;
+            end
+        end
+        HWLP_FETCHING: begin
+            hwlp_masked = 1'b0;
+            fifo_hwlp = 1'b1;
+            if(instr_rvalid_i & (CS != WAIT_ABORTED)) begin
+                if(valid_o & is_hwlp_o) begin
+                    hwlp_NS = HWLP_NONE;
+                end else begin
+                    hwlp_NS = HWLP_DONE;
+                end
+            end else begin
+                if(ready_i) begin
+                    fifo_clear = 1'b1;
+                end
+            end
+        end
+        HWLP_DONE: begin
+            hwlp_masked = 1'b0;
+            if(valid_o & is_hwlp_o) begin
+                hwlp_NS = HWLP_NONE;
+            end
+        end
+        default: begin
+            hwlp_masked = 1'b0;
+            hwlp_NS = HWLP_NONE;
+        end
+    endcase
+    if(branch_i) begin
+        hwlp_NS = HWLP_NONE;
+        fifo_clear = 1'b1;
+    end
+end
+always @(*) begin
+    instr_req_o = 1'b0;
+    instr_addr_o = fetch_addr;
+    fifo_valid = 1'b0;
+    addr_valid = 1'b0;
+    fetch_is_hwlp = 1'b0;
+    NS = CS;
+    case (CS)
+        IDLE: begin
+            instr_addr_o = fetch_addr;
+            instr_req_o = 1'b0;
+            if(branch_i | hwlp_branch) begin
+                instr_addr_o = branch_i ? addr_i : instr_addr_q;
+            end else if(hwlp_masked & valid_stored) begin
+                instr_addr_o = hwloop_target_i;
+            end
+            if(req_i & (((fifo_ready | branch_i) | hwlp_branch) | (hwlp_masked & valid_stored))) begin
+                instr_req_o = 1'b1;
+                addr_valid = 1'b1;
+                if(hwlp_masked & valid_stored) begin
+                    fetch_is_hwlp = 1'b1;
+                end
+                if(instr_gnt_i) begin
+                    NS = WAIT_RVALID;
+                end else begin
+                    NS = WAIT_GNT;
+                end
+            end
+        end
+        WAIT_GNT: begin
+            instr_addr_o = instr_addr_q;
+            instr_req_o = 1'b1;
+            if(branch_i | hwlp_branch) begin
+                instr_addr_o = branch_i ? addr_i : instr_addr_q;
+                addr_valid = 1'b1;
+            end else if(hwlp_masked & valid_stored) begin
+                instr_addr_o = hwloop_target_i;
+                addr_valid = 1'b1;
+                fetch_is_hwlp = 1'b1;
+            end
+            if(instr_gnt_i) begin
+                NS = WAIT_RVALID;
+            end else begin
+                NS = WAIT_GNT;
+            end
+        end
+        WAIT_RVALID: begin
+            instr_addr_o = fetch_addr;
+            if(branch_i | hwlp_branch) begin
+                instr_addr_o = branch_i ? addr_i : instr_addr_q;
+            end else if(hwlp_masked) begin
+                instr_addr_o = hwloop_target_i;
+            end
+            if(req_i & (((fifo_ready | branch_i) | hwlp_branch) | hwlp_masked)) begin
+                if(instr_rvalid_i) begin
+                    instr_req_o = 1'b1;
+                    fifo_valid = 1'b1;
+                    addr_valid = 1'b1;
+                    if(hwlp_masked) begin
+                        fetch_is_hwlp = 1'b1;
+                    end
+                    if(instr_gnt_i) begin
+                        NS = WAIT_RVALID;
+                    end else begin
+                        NS = WAIT_GNT;
+                    end
+                end else begin
+                    if(branch_i | hwlp_branch) begin
+                        addr_valid = 1'b1;
+                        NS = WAIT_ABORTED;
+                    end else if(hwlp_masked & valid_o) begin
+                        addr_valid = 1'b1;
+                        fetch_is_hwlp = 1'b1;
+                        NS = WAIT_ABORTED;
+                    end
+                end
+            end else begin
+                if(instr_rvalid_i) begin
+                    fifo_valid = 1'b1;
+                    NS = IDLE;
+                end
+            end
+        end
+        WAIT_ABORTED: begin
+            instr_addr_o = instr_addr_q;
+            if(branch_i | hwlp_branch) begin
+                instr_addr_o = branch_i ? addr_i : instr_addr_q;
+                addr_valid = 1'b1;
+            end
+            if(instr_rvalid_i) begin
+                instr_req_o = 1'b1;
+                if(instr_gnt_i) begin
+                    NS = WAIT_RVALID;
+                end else begin
+                    NS = WAIT_GNT;
+                end
+            end
+        end
+        default: begin
+            NS = IDLE;
+            instr_req_o = 1'b0;
+        end
+    endcase
+end
+always @(posedge clk or negedge rst_n) begin
+    if(~rst_n) begin
+        CS <= IDLE;
+        hwlp_CS <= HWLP_NONE;
+        instr_addr_q <= 32'd0;
+    end else begin
+        CS <= NS;
+        hwlp_CS <= hwlp_NS;
+        if(addr_valid) begin
+            instr_addr_q <= (hwloop_speculative & (~branch_i)) ? hwloop_target_i : instr_addr_o;
+        end
+    end
+end
+endmodule
+

@@ -1,0 +1,280 @@
+module riscv_ex_stage #( parameter APU_NUSFLAGS_CPU = 5,parameter APU_NARGS_CPU = 3,parameter APU_WOP_CPU = 6,parameter SHARED_INT_DIV = 0,parameter FPU = 0,parameter APU_NDSFLAGS_CPU = 15,parameter SHARED_FP = 0,parameter SHARED_DSP_MULT = 0) (
+    input  alu_en_i
+    ,input [31:0] alu_operand_a_i
+    ,input [31:0] alu_operand_b_i
+    ,input [31:0] alu_operand_c_i
+    ,input [(ALU_OP_WIDTH - 1):0] alu_operator_i
+    ,input [1:0] alu_vec_mode_i
+    ,output  apu_busy_o
+    ,input  apu_en_i
+    ,input [(APU_NDSFLAGS_CPU - 1):0] apu_flags_i
+    ,input [1:0] apu_lat_i
+    ,input  apu_master_gnt_i
+    ,output [(APU_WOP_CPU - 1):0] apu_master_op_o
+    ,output [31:0] [(APU_NARGS_CPU - 1):0] apu_master_operands_o
+    ,output  apu_master_ready_o
+    ,output  apu_master_req_o
+    ,input [31:0] apu_master_result_i
+    ,input  apu_master_valid_i
+    ,input [(APU_WOP_CPU - 1):0] apu_op_i
+    ,input [31:0] [(APU_NARGS_CPU - 1):0] apu_operands_i
+    ,output  apu_perf_cont_o
+    ,output  apu_perf_type_o
+    ,output  apu_perf_wb_o
+    ,output  apu_read_dep_o
+    ,input [2:0] [5:0] apu_read_regs_i
+    ,input [2:0] apu_read_regs_valid_i
+    ,output  apu_ready_wb_o
+    ,input [5:0] apu_waddr_i
+    ,output  apu_write_dep_o
+    ,input [1:0] [5:0] apu_write_regs_i
+    ,input [1:0] apu_write_regs_valid_i
+    ,input [4:0] bmask_a_i
+    ,input [4:0] bmask_b_i
+    ,output  branch_decision_o
+    ,input  branch_in_ex_i
+    ,input  clk
+    ,input  csr_access_i
+    ,input [31:0] csr_rdata_i
+    ,output  ex_ready_o
+    ,output  ex_valid_o
+    ,output [(C_FFLAG - 1):0] fpu_fflags_o
+    ,output  fpu_fflags_we_o
+    ,input [(C_CMD - 1):0] fpu_op_i
+    ,input [(C_PC - 1):0] fpu_prec_i
+    ,input [1:0] imm_vec_ext_i
+    ,output [31:0] jump_target_o
+    ,input  lsu_en_i
+    ,input [31:0] lsu_rdata_i
+    ,input  lsu_ready_ex_i
+    ,input [31:0] mult_dot_op_a_i
+    ,input [31:0] mult_dot_op_b_i
+    ,input [31:0] mult_dot_op_c_i
+    ,input [1:0] mult_dot_signed_i
+    ,input  mult_en_i
+    ,input [4:0] mult_imm_i
+    ,output  mult_multicycle_o
+    ,input [31:0] mult_operand_a_i
+    ,input [31:0] mult_operand_b_i
+    ,input [31:0] mult_operand_c_i
+    ,input [2:0] mult_operator_i
+    ,input  mult_sel_subword_i
+    ,input [1:0] mult_signed_mode_i
+    ,output reg [5:0] regfile_alu_waddr_fw_o
+    ,input [5:0] regfile_alu_waddr_i
+    ,output reg [31:0] regfile_alu_wdata_fw_o
+    ,output reg  regfile_alu_we_fw_o
+    ,input  regfile_alu_we_i
+    ,input [5:0] regfile_waddr_i
+    ,output reg [5:0] regfile_waddr_wb_o
+    ,output reg [31:0] regfile_wdata_wb_o
+    ,input  regfile_we_i
+    ,output reg  regfile_we_wb_o
+    ,input  rst_n
+    ,input  wb_ready_i
+);
+localparam C_PC = 5;
+localparam C_CMD = 4;
+localparam C_FFLAG = 5;
+localparam ALU_OP_WIDTH = 7;
+wire [5:0] apu_waddr;
+wire  mult_ready;
+wire  apu_multicycle;
+wire  apu_gnt;
+reg  wb_contention;
+reg  wb_contention_lsu;
+wire  apu_stall;
+reg [5:0] regfile_waddr_lsu;
+reg  regfile_we_lsu;
+wire  apu_req;
+wire  apu_valid;
+wire  apu_ready;
+wire [31:0] mult_result;
+wire [31:0] alu_result;
+wire  alu_cmp_result;
+wire  alu_ready;
+wire  apu_singlecycle;
+wire  fpu_busy;
+wire [31:0] apu_result;
+wire  apu_active;
+assign   branch_decision_o = alu_cmp_result;
+assign   jump_target_o = alu_operand_c_i;
+assign   apu_busy_o = apu_active;
+assign   ex_ready_o = ((((((~apu_stall) & alu_ready) & mult_ready) & lsu_ready_ex_i) & wb_ready_i) & (~wb_contention)) | branch_in_ex_i;
+assign   ex_valid_o = ((((apu_valid | alu_en_i) | mult_en_i) | csr_access_i) | lsu_en_i) & (((alu_ready & mult_ready) & lsu_ready_ex_i) & wb_ready_i);
+riscv_alu #(.FPU(FPU), .SHARED_INT_DIV(SHARED_INT_DIV)) alu_i (.bmask_a_i(bmask_a_i)
+ ,.bmask_b_i(bmask_b_i)
+ ,.clk(clk)
+ ,.comparison_result_o(alu_cmp_result)
+ ,.enable_i(alu_en_i)
+ ,.ex_ready_i(ex_ready_o)
+ ,.imm_vec_ext_i(imm_vec_ext_i)
+ ,.operand_a_i(alu_operand_a_i)
+ ,.operand_b_i(alu_operand_b_i)
+ ,.operand_c_i(alu_operand_c_i)
+ ,.operator_i(alu_operator_i)
+ ,.ready_o(alu_ready)
+ ,.result_o(alu_result)
+ ,.rst_n(rst_n)
+ ,.vector_mode_i(alu_vec_mode_i));
+riscv_mult #(.SHARED_DSP_MULT(SHARED_DSP_MULT)) mult_i (.clk(clk)
+ ,.dot_op_a_i(mult_dot_op_a_i)
+ ,.dot_op_b_i(mult_dot_op_b_i)
+ ,.dot_op_c_i(mult_dot_op_c_i)
+ ,.dot_signed_i(mult_dot_signed_i)
+ ,.enable_i(mult_en_i)
+ ,.ex_ready_i(ex_ready_o)
+ ,.imm_i(mult_imm_i)
+ ,.multicycle_o(mult_multicycle_o)
+ ,.op_a_i(mult_operand_a_i)
+ ,.op_b_i(mult_operand_b_i)
+ ,.op_c_i(mult_operand_c_i)
+ ,.operator_i(mult_operator_i)
+ ,.ready_o(mult_ready)
+ ,.result_o(mult_result)
+ ,.rst_n(rst_n)
+ ,.short_signed_i(mult_signed_mode_i)
+ ,.short_subword_i(mult_sel_subword_i));
+generate
+    if(FPU == 1) begin
+riscv_apu_disp  apu_disp_i(.clk_i(clk)
+ ,.rst_ni(rst_n)
+ ,.enable_i(apu_en_i)
+ ,.apu_lat_i(apu_lat_i)
+ ,.apu_waddr_i(apu_waddr_i)
+ ,.apu_waddr_o(apu_waddr)
+ ,.apu_multicycle_o(apu_multicycle)
+ ,.apu_singlecycle_o(apu_singlecycle)
+ ,.active_o(apu_active)
+ ,.stall_o(apu_stall)
+ ,.read_regs_i(apu_read_regs_i)
+ ,.read_regs_valid_i(apu_read_regs_valid_i)
+ ,.read_dep_o(apu_read_dep_o)
+ ,.write_regs_i(apu_write_regs_i)
+ ,.write_regs_valid_i(apu_write_regs_valid_i)
+ ,.write_dep_o(apu_write_dep_o)
+ ,.perf_type_o(apu_perf_type_o)
+ ,.perf_cont_o(apu_perf_cont_o)
+ ,.apu_master_req_o(apu_req)
+ ,.apu_master_ready_o(apu_ready)
+ ,.apu_master_gnt_i(apu_gnt)
+ ,.apu_master_valid_i(apu_valid));
+assign apu_perf_wb_o = (wb_contention | wb_contention_lsu);
+assign apu_ready_wb_o = ((~((apu_active | apu_en_i) | apu_stall)) | apu_valid);
+        if(SHARED_FP == 1) begin
+assign apu_master_req_o = apu_req;
+assign apu_master_ready_o = apu_ready;
+assign apu_gnt = apu_master_gnt_i;
+assign apu_valid = apu_master_valid_i;
+assign apu_master_operands_o = apu_operands_i;
+assign apu_master_op_o = apu_op_i;
+assign apu_result = apu_master_result_i;
+assign fpu_fflags_we_o = apu_valid;
+        end else begin
+fpu_private  fpu_i(.clk_i(clk)
+ ,.rst_ni(rst_n)
+ ,.fpu_en_i(apu_req)
+ ,.operand_a_i(apu_operands_i[0])
+ ,.operand_b_i(apu_operands_i[1])
+ ,.operand_c_i(apu_operands_i[2])
+ ,.rm_i(apu_flags_i[2:0])
+ ,.fpu_op_i(fpu_op_i)
+ ,.prec_i(fpu_prec_i)
+ ,.result_o(apu_result)
+ ,.valid_o(apu_valid)
+ ,.flags_o(fpu_fflags_o)
+ ,.divsqrt_busy_o(fpu_busy));
+assign fpu_fflags_we_o = apu_valid;
+assign apu_master_req_o = 32'd0;
+assign apu_master_ready_o = 1'b1;
+assign apu_master_operands_o[0] = 32'd0;
+assign apu_master_operands_o[1] = 32'd0;
+assign apu_master_operands_o[2] = 32'd0;
+assign apu_master_op_o = 32'd0;
+assign apu_gnt = 1'b1;
+        end
+    end else begin
+assign apu_master_req_o = 32'd0;
+assign apu_master_ready_o = 1'b1;
+assign apu_master_operands_o[0] = 32'd0;
+assign apu_master_operands_o[1] = 32'd0;
+assign apu_master_operands_o[2] = 32'd0;
+assign apu_master_op_o = 32'd0;
+assign apu_valid = 1'b0;
+assign apu_waddr = 6'b0;
+assign apu_stall = 1'b0;
+assign apu_active = 1'b0;
+assign apu_ready_wb_o = 1'b1;
+assign apu_perf_wb_o = 1'b0;
+assign apu_perf_cont_o = 1'b0;
+assign apu_perf_type_o = 1'b0;
+assign apu_singlecycle = 1'b0;
+assign apu_multicycle = 1'b0;
+assign apu_read_dep_o = 1'b0;
+assign apu_write_dep_o = 1'b0;
+assign fpu_fflags_we_o = 1'b0;
+assign fpu_fflags_o = 32'd0;
+    end
+
+endgenerate
+always @(*) begin
+    regfile_alu_wdata_fw_o = 32'd0;
+    regfile_alu_waddr_fw_o = 32'd0;
+    regfile_alu_we_fw_o = 32'd0;
+    wb_contention = 1'b0;
+    if(apu_valid & (apu_singlecycle | apu_multicycle)) begin
+        regfile_alu_we_fw_o = 1'b1;
+        regfile_alu_waddr_fw_o = apu_waddr;
+        regfile_alu_wdata_fw_o = apu_result;
+        if(regfile_alu_we_i & (~apu_en_i)) begin
+            wb_contention = 1'b1;
+        end
+    end else begin
+        regfile_alu_we_fw_o = regfile_alu_we_i & (~apu_en_i);
+        regfile_alu_waddr_fw_o = regfile_alu_waddr_i;
+        if(alu_en_i) begin
+            regfile_alu_wdata_fw_o = alu_result;
+        end
+        if(mult_en_i) begin
+            regfile_alu_wdata_fw_o = mult_result;
+        end
+        if(csr_access_i) begin
+            regfile_alu_wdata_fw_o = csr_rdata_i;
+        end
+    end
+end
+always @(*) begin
+    regfile_we_wb_o = 1'b0;
+    regfile_waddr_wb_o = regfile_waddr_lsu;
+    regfile_wdata_wb_o = lsu_rdata_i;
+    wb_contention_lsu = 1'b0;
+    if(regfile_we_lsu) begin
+        regfile_we_wb_o = 1'b1;
+        if(apu_valid & ((!apu_singlecycle) & (!apu_multicycle))) begin
+            wb_contention_lsu = 1'b1;
+        end
+    end else if(apu_valid & ((!apu_singlecycle) & (!apu_multicycle))) begin
+        regfile_we_wb_o = 1'b1;
+        regfile_waddr_wb_o = apu_waddr;
+        regfile_wdata_wb_o = apu_result;
+    end
+end
+always @(posedge clk or negedge rst_n) begin
+    begin :EX_WB_Pipeline_Register
+        if(~rst_n) begin
+            regfile_waddr_lsu <= 32'd0;
+            regfile_we_lsu <= 1'b0;
+        end else begin
+            if(ex_valid_o) begin
+                regfile_we_lsu <= regfile_we_i;
+                if(regfile_we_i) begin
+                    regfile_waddr_lsu <= regfile_waddr_i;
+                end
+            end else if(wb_ready_i) begin
+                regfile_we_lsu <= 1'b0;
+            end
+        end
+    end
+end
+endmodule
+

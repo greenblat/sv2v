@@ -1,0 +1,28 @@
+module riscv_hwloop_regs
+    parameter N_REG_BITS ['functioncall', '$clog2', ['N_REGS']]
+    parameter N_REGS 2
+    net rst_n ('input', 0)
+    net hwlp_start_q ('reg', ('packed', (['-', 'N_REGS', 1], 0), (31, 0)))
+    net hwlp_we_i ('input', (2, 0))
+    net hwlp_end_addr_o ('output', ('packed', (['-', 'N_REGS', 1], 0), (31, 0)))
+    net hwlp_counter_o ('output', ('packed', (['-', 'N_REGS', 1], 0), (31, 0)))
+    net hwlp_cnt_data_i ('input', (31, 0))
+    net i ('reg', (31, 0))
+    net hwlp_counter_n ('wire', ('packed', (['-', 'N_REGS', 1], 0), (31, 0)))
+    net clk ('input', 0)
+    net hwlp_dec_cnt_i ('input', (['-', 'N_REGS', 1], 0))
+    net hwlp_start_data_i ('input', (31, 0))
+    net hwlp_end_data_i ('input', (31, 0))
+    net hwlp_regid_i ('input', (['-', 'N_REG_BITS', 1], 0))
+    net hwlp_counter_q ('reg', ('packed', (['-', 'N_REGS', 1], 0), (31, 0)))
+    net valid_i ('input', 0)
+    net hwlp_end_q ('reg', ('packed', (['-', 'N_REGS', 1], 0), (31, 0)))
+    net hwlp_start_addr_o ('output', ('packed', (['-', 'N_REGS', 1], 0), (31, 0)))
+    assign ('hwlp_start_addr_o', 'hwlp_start_q', '', '')
+    assign ('hwlp_end_addr_o', 'hwlp_end_q', '', '')
+    assign ('hwlp_counter_o', 'hwlp_counter_q', '', '')
+    always [['list', ['edge', 'posedge', 'clk'], ['edge', 'negedge', 'rst_n']], ['named_begin', 'HWLOOP_REGS_START', ['list', ['ifelse', ['~', 'rst_n'], ['list', ['<=', 'hwlp_start_q', ['bin', '32', '0']]], ['if', ['subbit', 'hwlp_we_i', 0], ['list', ['<=', ['subbit', 'hwlp_start_q', 'hwlp_regid_i'], 'hwlp_start_data_i']]]]]], 'always']
+    always [['list', ['edge', 'posedge', 'clk'], ['edge', 'negedge', 'rst_n']], ['named_begin', 'HWLOOP_REGS_END', ['list', ['ifelse', ['~', 'rst_n'], ['list', ['<=', 'hwlp_end_q', ['bin', '32', '0']]], ['if', ['subbit', 'hwlp_we_i', 1], ['list', ['<=', ['subbit', 'hwlp_end_q', 'hwlp_regid_i'], 'hwlp_end_data_i']]]]]], 'always']
+    always [['list', ['edge', 'posedge', 'clk'], ['edge', 'negedge', 'rst_n']], ['named_begin', 'HWLOOP_REGS_COUNTER', ['list', ['ifelse', ['~', 'rst_n'], ['list', ['<=', 'hwlp_counter_q', ['bin', '32', '0']]], ['list', ['for', ['list', ['=', 'i', 0]], ['<', 'i', 'N_REGS'], ['list', ['=', 'i', ['+', 'i', 1]]], ['list', ['ifelse', ['&&', ['subbit', 'hwlp_we_i', 2], ['==', 'i', 'hwlp_regid_i']], ['list', ['<=', ['subbit', 'hwlp_counter_q', 'i'], 'hwlp_cnt_data_i']], ['list', ['if', ['&&', ['subbit', 'hwlp_dec_cnt_i', 'i'], 'valid_i'], ['<=', ['subbit', 'hwlp_counter_q', 'i'], ['subbit', 'hwlp_counter_n', 'i']]]]]]]]]]], 'always']
+    generate ['for', ['list', ['=', 'k', 0]], ['<', 'k', 'N_REGS'], ['list', ['=', 'k', ['+', 'k', 1]]], ['list', ['assigns', ['=', ['subbit', 'hwlp_counter_n', 'k'], ['-', ['subbit', 'hwlp_counter_q', 'k'], 1]]]]]
+endmodule

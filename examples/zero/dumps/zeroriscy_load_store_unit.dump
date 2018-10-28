@@ -1,0 +1,68 @@
+module zeroriscy_load_store_unit
+    net data_req_o ('output reg', 0)
+    net data_be_o ('output', (3, 0))
+    net data_misaligned_q ('reg', 0)
+    net rdata_h_ext ('reg', (31, 0))
+    net data_be ('reg', (3, 0))
+    net data_wdata_ex_i ('input', (31, 0))
+    net wdata_offset ('wire', (1, 0))
+    net data_wdata ('reg', (31, 0))
+    net data_type_ex_i ('input', (1, 0))
+    net data_valid_o ('output reg', 0)
+    net data_wdata_o ('output', (31, 0))
+    net adder_result_ex_i ('input', (31, 0))
+    net data_err_i ('input', 0)
+    net rdata_offset_q ('reg', (1, 0))
+    net rdata_b_ext ('reg', (31, 0))
+    net clk ('input', 0)
+    net data_we_q ('reg', 0)
+    net data_rdata_i ('input', (31, 0))
+    net data_type_q ('reg', (1, 0))
+    net increase_address ('reg', 0)
+    net store_err_o ('output', 0)
+    net rdata_w_ext ('reg', (31, 0))
+    net data_we_o ('output', 0)
+    net NS ('reg', (2, 0))
+    net data_we_ex_i ('input', 0)
+    net data_rvalid_i ('input', 0)
+    net rst_n ('input', 0)
+    net misaligned_st ('wire', 0)
+    net data_addr_o ('output', (31, 0))
+    net data_reg_offset_ex_i ('input', (1, 0))
+    net rdata_q ('reg', (31, 0))
+    net data_sign_ext_ex_i ('input', 0)
+    net data_misaligned ('reg', 0)
+    net lsu_update_addr_o ('output reg', 0)
+    net busy_o ('output', 0)
+    net CS ('reg', (2, 0))
+    net misaligned_addr_o ('output reg', (31, 0))
+    net data_misaligned_o ('output reg', 0)
+    net data_rdata_ext ('reg', (31, 0))
+    net data_sign_ext_q ('reg', 0)
+    net data_req_ex_i ('input', 0)
+    net data_gnt_i ('input', 0)
+    net data_addr_int ('wire', (31, 0))
+    net load_err_o ('output', 0)
+    net data_rdata_ex_o ('output', (31, 0))
+    assign ('wdata_offset', ['-', ['subbus', 'data_addr_int', [1, 0]], ['subbus', 'data_reg_offset_ex_i', [1, 0]]], '', '')
+    assign ('data_rdata_ex_o', ['question', 'data_rvalid_i', 'data_rdata_ext', 'rdata_q'], '', '')
+    assign ('data_addr_o', 'data_addr_int', '', '')
+    assign ('data_wdata_o', 'data_wdata', '', '')
+    assign ('data_we_o', 'data_we_ex_i', '', '')
+    assign ('data_be_o', 'data_be', '', '')
+    assign ('misaligned_st', 'data_misaligned_q', '', '')
+    assign ('load_err_o', ['bin', '1', '0'], '', '')
+    assign ('store_err_o', ['bin', '1', '0'], '', '')
+    assign ('data_addr_int', 'adder_result_ex_i', '', '')
+    assign ('busy_o', ['||', ['==', 'CS', 'WAIT_RVALID'], 'data_req_o'], '', '')
+    always ['*', ['list', ['case', 'data_type_ex_i', [[[['bin', '2', '00']], ['list', ['ifelse', ['~', 'misaligned_st'], ['list', ['case', ['subbus', 'data_addr_int', (1, 0)], [[[['bin', '2', '00']], ['=', 'data_be', ['bin', '4', '1111']]], [[['bin', '2', '01']], ['=', 'data_be', ['bin', '4', '1110']]], [[['bin', '2', '10']], ['=', 'data_be', ['bin', '4', '1100']]], [[['bin', '2', '11']], ['=', 'data_be', ['bin', '4', '1000']]]]]], ['list', ['case', ['subbus', 'data_addr_int', (1, 0)], [[[['bin', '2', '00']], ['=', 'data_be', ['bin', '4', '0000']]], [[['bin', '2', '01']], ['=', 'data_be', ['bin', '4', '0001']]], [[['bin', '2', '10']], ['=', 'data_be', ['bin', '4', '0011']]], [[['bin', '2', '11']], ['=', 'data_be', ['bin', '4', '0111']]]]]]]]], [[['bin', '2', '01']], ['list', ['ifelse', ['~', 'misaligned_st'], ['list', ['case', ['subbus', 'data_addr_int', (1, 0)], [[[['bin', '2', '00']], ['=', 'data_be', ['bin', '4', '0011']]], [[['bin', '2', '01']], ['=', 'data_be', ['bin', '4', '0110']]], [[['bin', '2', '10']], ['=', 'data_be', ['bin', '4', '1100']]], [[['bin', '2', '11']], ['=', 'data_be', ['bin', '4', '1000']]]]]], ['list', ['=', 'data_be', ['bin', '4', '0001']]]]]], [[['bin', '2', '10'], ['bin', '2', '11']], ['list', ['case', ['subbus', 'data_addr_int', (1, 0)], [[[['bin', '2', '00']], ['=', 'data_be', ['bin', '4', '0001']]], [[['bin', '2', '01']], ['=', 'data_be', ['bin', '4', '0010']]], [[['bin', '2', '10']], ['=', 'data_be', ['bin', '4', '0100']]], [[['bin', '2', '11']], ['=', 'data_be', ['bin', '4', '1000']]]]]]]]]], 'always']
+    always ['*', ['list', ['case', 'wdata_offset', [[[['bin', '2', '00']], ['=', 'data_wdata', ['subbus', 'data_wdata_ex_i', [31, 0]]]], [[['bin', '2', '01']], ['=', 'data_wdata', ['curly', ['subbus', 'data_wdata_ex_i', [23, 0]], ['subbus', 'data_wdata_ex_i', [31, 24]]]]], [[['bin', '2', '10']], ['=', 'data_wdata', ['curly', ['subbus', 'data_wdata_ex_i', [15, 0]], ['subbus', 'data_wdata_ex_i', [31, 16]]]]], [[['bin', '2', '11']], ['=', 'data_wdata', ['curly', ['subbus', 'data_wdata_ex_i', [7, 0]], ['subbus', 'data_wdata_ex_i', [31, 8]]]]]]]], 'always']
+    always [['list', ['edge', 'posedge', 'clk'], ['edge', 'negedge', 'rst_n']], ['list', ['ifelse', ['~', 'rst_n'], ['list', ['<=', 'data_type_q', ['dig', 32, '0']], ['<=', 'rdata_offset_q', ['dig', 32, '0']], ['<=', 'data_sign_ext_q', ['dig', 32, '0']], ['<=', 'data_we_q', ['bin', '1', '0']]], ['if', 'data_gnt_i', ['list', ['<=', 'data_type_q', 'data_type_ex_i'], ['<=', 'rdata_offset_q', ['subbus', 'data_addr_int', [1, 0]]], ['<=', 'data_sign_ext_q', 'data_sign_ext_ex_i'], ['<=', 'data_we_q', 'data_we_ex_i']]]]], 'always']
+    always ['*', ['list', ['case', 'rdata_offset_q', [[[['bin', '2', '00']], ['=', 'rdata_w_ext', ['subbus', 'data_rdata_i', [31, 0]]]], [[['bin', '2', '01']], ['=', 'rdata_w_ext', ['curly', ['subbus', 'data_rdata_i', [7, 0]], ['subbus', 'rdata_q', [31, 8]]]]], [[['bin', '2', '10']], ['=', 'rdata_w_ext', ['curly', ['subbus', 'data_rdata_i', [15, 0]], ['subbus', 'rdata_q', [31, 16]]]]], [[['bin', '2', '11']], ['=', 'rdata_w_ext', ['curly', ['subbus', 'data_rdata_i', [23, 0]], ['subbus', 'rdata_q', [31, 24]]]]]]]], 'always']
+    always ['*', ['list', ['case', 'rdata_offset_q', [[[['bin', '2', '00']], ['list', ['ifelse', ['~', 'data_sign_ext_q'], ['=', 'rdata_h_ext', ['curly', ['hex', '16', '0000'], ['subbus', 'data_rdata_i', [15, 0]]]], ['=', 'rdata_h_ext', ['curly', ['curly', 'repeat', 16, ['curly', ['subbit', 'data_rdata_i', 15]]], ['subbus', 'data_rdata_i', [15, 0]]]]]]], [[['bin', '2', '01']], ['list', ['ifelse', ['~', 'data_sign_ext_q'], ['=', 'rdata_h_ext', ['curly', ['hex', '16', '0000'], ['subbus', 'data_rdata_i', [23, 8]]]], ['=', 'rdata_h_ext', ['curly', ['curly', 'repeat', 16, ['curly', ['subbit', 'data_rdata_i', 23]]], ['subbus', 'data_rdata_i', [23, 8]]]]]]], [[['bin', '2', '10']], ['list', ['ifelse', ['~', 'data_sign_ext_q'], ['=', 'rdata_h_ext', ['curly', ['hex', '16', '0000'], ['subbus', 'data_rdata_i', [31, 16]]]], ['=', 'rdata_h_ext', ['curly', ['curly', 'repeat', 16, ['curly', ['subbit', 'data_rdata_i', 31]]], ['subbus', 'data_rdata_i', [31, 16]]]]]]], [[['bin', '2', '11']], ['list', ['ifelse', ['~', 'data_sign_ext_q'], ['=', 'rdata_h_ext', ['curly', ['hex', '16', '0000'], ['subbus', 'data_rdata_i', [7, 0]], ['subbus', 'rdata_q', [31, 24]]]], ['=', 'rdata_h_ext', ['curly', ['curly', 'repeat', 16, ['curly', ['subbit', 'data_rdata_i', 7]]], ['subbus', 'data_rdata_i', [7, 0]], ['subbus', 'rdata_q', [31, 24]]]]]]]]]], 'always']
+    always ['*', ['list', ['case', 'rdata_offset_q', [[[['bin', '2', '00']], ['list', ['ifelse', ['~', 'data_sign_ext_q'], ['=', 'rdata_b_ext', ['curly', ['hex', '24', '00_0000'], ['subbus', 'data_rdata_i', [7, 0]]]], ['=', 'rdata_b_ext', ['curly', ['curly', 'repeat', 24, ['curly', ['subbit', 'data_rdata_i', 7]]], ['subbus', 'data_rdata_i', [7, 0]]]]]]], [[['bin', '2', '01']], ['list', ['ifelse', ['~', 'data_sign_ext_q'], ['=', 'rdata_b_ext', ['curly', ['hex', '24', '00_0000'], ['subbus', 'data_rdata_i', [15, 8]]]], ['=', 'rdata_b_ext', ['curly', ['curly', 'repeat', 24, ['curly', ['subbit', 'data_rdata_i', 15]]], ['subbus', 'data_rdata_i', [15, 8]]]]]]], [[['bin', '2', '10']], ['list', ['ifelse', ['~', 'data_sign_ext_q'], ['=', 'rdata_b_ext', ['curly', ['hex', '24', '00_0000'], ['subbus', 'data_rdata_i', [23, 16]]]], ['=', 'rdata_b_ext', ['curly', ['curly', 'repeat', 24, ['curly', ['subbit', 'data_rdata_i', 23]]], ['subbus', 'data_rdata_i', [23, 16]]]]]]], [[['bin', '2', '11']], ['list', ['ifelse', ['~', 'data_sign_ext_q'], ['=', 'rdata_b_ext', ['curly', ['hex', '24', '00_0000'], ['subbus', 'data_rdata_i', [31, 24]]]], ['=', 'rdata_b_ext', ['curly', ['curly', 'repeat', 24, ['curly', ['subbit', 'data_rdata_i', 31]]], ['subbus', 'data_rdata_i', [31, 24]]]]]]]]]], 'always']
+    always ['*', ['list', ['case', 'data_type_q', [[[['bin', '2', '00']], ['=', 'data_rdata_ext', 'rdata_w_ext']], [[['bin', '2', '01']], ['=', 'data_rdata_ext', 'rdata_h_ext']], [[['bin', '2', '10'], ['bin', '2', '11']], ['=', 'data_rdata_ext', 'rdata_b_ext']]]]], 'always']
+    always [['list', ['edge', 'posedge', 'clk'], ['edge', 'negedge', 'rst_n']], ['list', ['ifelse', ['~', 'rst_n'], ['list', ['<=', 'CS', 'IDLE'], ['<=', 'rdata_q', ['dig', 32, '0']], ['<=', 'data_misaligned_q', ['dig', 32, '0']], ['<=', 'misaligned_addr_o', ['bin', '32', '0']]], ['list', ['<=', 'CS', 'NS'], ['if', 'lsu_update_addr_o', ['list', ['<=', 'data_misaligned_q', 'data_misaligned'], ['if', 'increase_address', ['list', ['<=', 'misaligned_addr_o', 'data_addr_int']]]]], ['if', ['&&', 'data_rvalid_i', ['~', 'data_we_q']], ['list', ['ifelse', ['||', 'data_misaligned_q', 'data_misaligned'], ['<=', 'rdata_q', 'data_rdata_i'], ['<=', 'rdata_q', 'data_rdata_ext']]]]]]], 'always']
+    always ['*', ['list', ['=', 'NS', 'CS'], ['=', 'data_req_o', ['bin', '1', '0']], ['=', 'lsu_update_addr_o', ['bin', '1', '0']], ['=', 'data_valid_o', ['bin', '1', '0']], ['=', 'increase_address', ['bin', '1', '0']], ['=', 'data_misaligned_o', ['bin', '1', '0']], ['case', 'CS', [[['IDLE'], ['list', ['if', 'data_req_ex_i', ['list', ['=', 'data_req_o', 'data_req_ex_i'], ['ifelse', 'data_gnt_i', ['list', ['=', 'lsu_update_addr_o', ['bin', '1', '1']], ['=', 'increase_address', 'data_misaligned'], ['=', 'NS', ['question', 'data_misaligned', 'WAIT_RVALID_MIS', 'WAIT_RVALID']]], ['list', ['=', 'NS', ['question', 'data_misaligned', 'WAIT_GNT_MIS', 'WAIT_GNT']]]]]]]], [['WAIT_GNT_MIS'], ['list', ['=', 'data_req_o', ['bin', '1', '1']], ['if', 'data_gnt_i', ['list', ['=', 'lsu_update_addr_o', ['bin', '1', '1']], ['=', 'increase_address', 'data_misaligned'], ['=', 'NS', 'WAIT_RVALID_MIS']]]]], [['WAIT_RVALID_MIS'], ['list', ['=', 'increase_address', ['bin', '1', '0']], ['=', 'data_misaligned_o', ['bin', '1', '1']], ['=', 'data_req_o', ['bin', '1', '0']], ['=', 'lsu_update_addr_o', 'data_gnt_i'], ['ifelse', 'data_rvalid_i', ['list', ['=', 'data_req_o', ['bin', '1', '1']], ['ifelse', 'data_gnt_i', ['list', ['=', 'NS', 'WAIT_RVALID']], ['list', ['=', 'NS', 'WAIT_GNT']]]], ['list', ['=', 'NS', 'WAIT_RVALID_MIS']]]]], [['WAIT_GNT'], ['list', ['=', 'data_misaligned_o', 'data_misaligned_q'], ['=', 'data_req_o', ['bin', '1', '1']], ['if', 'data_gnt_i', ['list', ['=', 'lsu_update_addr_o', ['bin', '1', '1']], ['=', 'NS', 'WAIT_RVALID']]]]], [['WAIT_RVALID'], ['list', ['=', 'data_req_o', ['bin', '1', '0']], ['ifelse', 'data_rvalid_i', ['list', ['=', 'data_valid_o', ['bin', '1', '1']], ['=', 'NS', 'IDLE']], ['list', ['=', 'NS', 'WAIT_RVALID']]]]], ['default', ['list', ['=', 'NS', 'IDLE']]]]]], 'always']
+    always ['*', ['list', ['=', 'data_misaligned', ['bin', '1', '0']], ['if', ['&&', 'data_req_ex_i', ['~', 'data_misaligned_q']], ['list', ['case', 'data_type_ex_i', [[[['bin', '2', '00']], ['list', ['if', ['!=', ['subbus', 'data_addr_int', [1, 0]], ['bin', '2', '00']], ['=', 'data_misaligned', ['bin', '1', '1']]]]], [[['bin', '2', '01']], ['list', ['if', ['==', ['subbus', 'data_addr_int', [1, 0]], ['bin', '2', '11']], ['=', 'data_misaligned', ['bin', '1', '1']]]]], ['default', ['empty_begin_end']]]]]]], 'always']
+endmodule

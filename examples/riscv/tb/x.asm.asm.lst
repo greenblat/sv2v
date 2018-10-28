@@ -1,0 +1,5 @@
+      x.asm.asm:  2 : 0000  00000000 data_orig data_orig 0x0
+      x.asm.asm:  3 : 0000  00000000 datavar datavar THREADS_START 0x0
+      x.asm.asm:  4 : 0010  00000000 data_orig data_orig 0x10
+      x.asm.asm:  5 : 0200  00000000 prog_orig prog_orig 0x200
+      x.asm.asm:  6 : 0000  00000000 idle lui R15 4096

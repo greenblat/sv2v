@@ -1,0 +1,19 @@
+module zeroriscy_int_controller
+    net exc_ctrl_cs ('reg', (1, 0))
+    net rst_n ('input', 0)
+    net ctrl_ack_i ('input', 0)
+    net clk ('input', 0)
+    net m_IE_i ('input', 0)
+    net ctrl_kill_i ('input', 0)
+    net irq_id_q ('reg', (4, 0))
+    net irq_enable_ext ('wire', 0)
+    net irq_i ('input', 0)
+    net irq_id_i ('input', (4, 0))
+    net irq_id_ctrl_o ('output', (4, 0))
+    net exc_ctrl_ns ('wire', (1, 0))
+    net irq_req_ctrl_o ('output', 0)
+    assign ('irq_enable_ext', 'm_IE_i', '', '')
+    assign ('irq_req_ctrl_o', ['==', 'exc_ctrl_cs', 'IRQ_PENDING'], '', '')
+    assign ('irq_id_ctrl_o', 'irq_id_q', '', '')
+    always [['list', ['edge', 'posedge', 'clk'], ['edge', 'negedge', 'rst_n']], ['list', ['ifelse', ['~', 'rst_n'], ['list', ['<=', 'irq_id_q', ['dig', 32, '0']], ['<=', 'exc_ctrl_cs', 'IDLE']], ['list', ['case', 'exc_ctrl_cs', [[['IDLE'], ['list', ['if', ['&', 'irq_enable_ext', 'irq_i'], ['list', ['<=', 'exc_ctrl_cs', 'IRQ_PENDING'], ['<=', 'irq_id_q', 'irq_id_i']]]]], [['IRQ_PENDING'], ['list', ['case', ['bin', '1', '1'], [[['ctrl_ack_i'], ['<=', 'exc_ctrl_cs', 'IRQ_DONE']], [['ctrl_kill_i'], ['<=', 'exc_ctrl_cs', 'IDLE']], ['default', ['<=', 'exc_ctrl_cs', 'IRQ_PENDING']]]]]], [['IRQ_DONE'], ['list', ['<=', 'exc_ctrl_cs', 'IDLE']]]]]]]], 'always']
+endmodule

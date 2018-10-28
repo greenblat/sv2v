@@ -1,0 +1,11 @@
+mmmmmmmmmmmmmmmmmmmmmmmmmmm 
+reading file33.v file
+info: yacc step0
+info: yacc step1
+info: exit state 0 1
+info: yacc step2
+info: yacc step3
+info: addmodule riscv_hwloop_regs (['riscv_hwloop_regs'])
+locals ['riscv_hwloop_regs']
+0: ERROR!! in none: pacifierVerilog: net hwlp_regid_i tried to be reg from "input"
+1: ERROR!! in none: net not defined for declareRegs "k"

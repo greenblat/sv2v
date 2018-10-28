@@ -1,0 +1,1533 @@
+module riscv_decoder #( parameter WAPUTYPE = 0,parameter SHARED_FP_DIVSQRT = 0,parameter APU_WOP_CPU = 6,parameter SHARED_INT_DIV = 0,parameter FPU = 0,parameter PULP_SECURE = 0,parameter SHARED_FP = 0,parameter SHARED_DSP_MULT = 0) (
+    output reg  alu_bmask_a_mux_sel_o
+    ,output reg  alu_bmask_b_mux_sel_o
+    ,output reg  alu_en_o
+    ,output reg [2:0] alu_op_a_mux_sel_o
+    ,output reg [2:0] alu_op_b_mux_sel_o
+    ,output reg [1:0] alu_op_c_mux_sel_o
+    ,output reg [(ALU_OP_WIDTH - 1):0] alu_operator_o
+    ,output reg [1:0] alu_vec_mode_o
+    ,output  apu_en_o
+    ,output reg [(WAPUTYPE - 1):0] apu_flags_src_o
+    ,output reg [1:0] apu_lat_o
+    ,output reg [(APU_WOP_CPU - 1):0] apu_op_o
+    ,output reg [(WAPUTYPE - 1):0] apu_type_o
+    ,output reg [0:0] bmask_a_mux_o
+    ,output reg [1:0] bmask_b_mux_o
+    ,output reg  csr_access_o
+    ,output [1:0] csr_op_o
+    ,output reg  csr_status_o
+    ,input [1:0] current_priv_lvl_i
+    ,output reg  data_load_event_o
+    ,input  data_misaligned_i
+    ,output reg [1:0] data_reg_offset_o
+    ,output  data_req_o
+    ,output reg  data_sign_extension_o
+    ,output reg [1:0] data_type_o
+    ,output reg  data_we_o
+    ,input  deassert_we_i
+    ,output reg  ebrk_insn_o
+    ,output reg  ecall_insn_o
+    ,output reg [2:0] fp_rnd_mode_o
+    ,output reg [(C_CMD - 1):0] fpu_op_o
+    ,output reg  hwloop_cnt_mux_sel_o
+    ,output reg  hwloop_start_mux_sel_o
+    ,output reg  hwloop_target_mux_sel_o
+    ,output [2:0] hwloop_we_o
+    ,input  illegal_c_insn_i
+    ,output reg  illegal_insn_o
+    ,output reg [0:0] imm_a_mux_sel_o
+    ,output reg [3:0] imm_b_mux_sel_o
+    ,output reg  instr_multicycle_o
+    ,input [31:0] instr_rdata_i
+    ,output [1:0] jump_in_dec_o
+    ,output [1:0] jump_in_id_o
+    ,output reg [1:0] jump_target_mux_sel_o
+    ,output reg  mret_insn_o
+    ,output reg  mult_dot_en_o
+    ,output reg [1:0] mult_dot_signed_o
+    ,output reg [0:0] mult_imm_mux_o
+    ,output reg  mult_int_en_o
+    ,input  mult_multicycle_i
+    ,output reg [2:0] mult_operator_o
+    ,output reg  mult_sel_subword_o
+    ,output reg [1:0] mult_signed_mode_o
+    ,output reg  pipe_flush_o
+    ,output reg  prepost_useincr_o
+    ,output reg  reg_fp_a_o
+    ,output reg  reg_fp_b_o
+    ,output reg  reg_fp_c_o
+    ,output reg  reg_fp_d_o
+    ,output reg  rega_used_o
+    ,output reg  regb_used_o
+    ,output reg [1:0] regc_mux_o
+    ,output reg  regc_used_o
+    ,output reg  regfile_alu_waddr_sel_o
+    ,output  regfile_alu_we_o
+    ,output  regfile_mem_we_o
+    ,output reg  scalar_replication_o
+    ,output reg  uret_insn_o
+);
+localparam ALU_ROR = 7'b0100110;
+localparam ALU_SLTS = 7'b0000010;
+localparam CSR_OP_CLEAR = 2'b11;
+localparam OPCODE_STORE_FP = 7'h27;
+localparam OPCODE_LOAD = 7'h03;
+localparam JT_JALR = 2'b10;
+localparam OPCODE_HWLOOP = 7'h7b;
+localparam OPCODE_OP_FP = 7'h53;
+localparam OP_B_REGB_OR_FWD = 3'b000;
+localparam IMMB_S2 = 4'b0100;
+localparam ALU_SUBR = 7'b0011101;
+localparam OPCODE_OP_FNMSUB = 7'h4b;
+localparam REGC_ZERO = 2'b11;
+localparam ALU_LEU = 7'b0000101;
+localparam ALU_REM = 7'b0110011;
+localparam APUTYPE_INT_MULT = SHARED_INT_MULT ? SHARED_DSP_MULT : 0;
+localparam OP_B_REGC_OR_FWD = 3'b001;
+localparam C_FPU_I2F_CMD = 4'h4;
+localparam ALU_EQ = 7'b0001100;
+localparam IMMB_VS = 4'b0110;
+localparam ALU_FF1 = 7'b0110110;
+localparam OPCODE_VECOP = 7'h57;
+localparam C_FPU_DIV_CMD = 4'h3;
+localparam C_FPU_SQRT_CMD = 4'h6;
+localparam IMMB_CLIP = 4'b1001;
+localparam MUL_MSU32 = 3'b001;
+localparam ALU_ADDUR = 7'b0011110;
+localparam IMMB_BI = 4'b1011;
+localparam ALU_PCKHI = 7'b0111001;
+localparam C_FPU_MUL_CMD = 4'h2;
+localparam APUTYPE_MAC = SHARED_FP ? (APUTYPE_FP + 3) : 0;
+localparam ALU_DIVU = 7'b0110000;
+localparam ALU_CNT = 7'b0110100;
+localparam C_FPU_FNMSUB_CMD = 4'hB;
+localparam MUL_DOT16 = 3'b101;
+localparam OPCODE_LOAD_FP = 7'h07;
+localparam VEC_MODE32 = 2'b00;
+localparam OPCODE_LUI = 7'h37;
+localparam VEC_MODE8 = 2'b11;
+localparam BMASK_A_S3 = 1'b1;
+localparam OPCODE_OPIMM = 7'h13;
+localparam ALU_SLL = 7'b0100111;
+localparam APUTYPE_CAST = SHARED_FP ? (APUTYPE_FP + 2) : 0;
+localparam ALU_MAXU = 7'b0010011;
+localparam APUTYPE_SQRT = (SHARED_FP_DIVSQRT == 1) ? (APUTYPE_FP + 5) : 0;
+localparam OPCODE_AUIPC = 7'h17;
+localparam OPCODE_PULP_OP = 7'h5b;
+localparam OP_A_REGB_OR_FWD = 3'b011;
+localparam OP_A_REGA_OR_FWD = 3'b000;
+localparam BMASK_B_IMM = 1'b1;
+localparam APUTYPE_INT_DIV = SHARED_INT_DIV ? (SHARED_DSP_MULT + SHARED_INT_MULT) : 0;
+localparam OPCODE_LOAD_POST = 7'h0b;
+localparam OP_B_REGA_OR_FWD = 3'b011;
+localparam IMMB_SHUF = 4'b1000;
+localparam ALU_MIN = 7'b0010000;
+localparam BMASK_A_ZERO = 1'b0;
+localparam APUTYPE_DIV = (SHARED_FP_DIVSQRT == 1) ? (APUTYPE_FP + 4) : 0;
+localparam ALU_OR = 7'b0101110;
+localparam C_CMD = 4;
+localparam IMMB_VU = 4'b0111;
+localparam ALU_MAX = 7'b0010010;
+localparam C_FPU_SUB_CMD = 4'h1;
+localparam ALU_OP_WIDTH = 7;
+localparam ALU_BEXTU = 7'b0101001;
+localparam PRIV_LVL_M = 2'b11;
+localparam ALU_SUBUR = 7'b0011111;
+localparam MUL_H = 3'b110;
+localparam MUL_I = 3'b010;
+localparam ALU_GTS = 7'b0001000;
+localparam ALU_GTU = 7'b0001001;
+localparam APUTYPE_ADDSUB = SHARED_FP ? APUTYPE_FP : 0;
+localparam REGC_RD = 2'b01;
+localparam IMMA_Z = 1'b0;
+localparam BMASK_A_IMM = 1'b1;
+localparam OPCODE_OP_FMSUB = 7'h47;
+localparam C_FPU_F2I_CMD = 4'h5;
+localparam ALU_LTS = 7'b0000000;
+localparam ALU_SHUF = 7'b0111010;
+localparam ALU_FSGNJ = 7'b1000000;
+localparam ALU_FKEEP = 7'b1111111;
+localparam ALU_LTU = 7'b0000001;
+localparam IMMB_PCINCR = 4'b0011;
+localparam APUTYPE_FP = SHARED_FP ? ((SHARED_DSP_MULT + SHARED_INT_MULT) + SHARED_INT_DIV) : 0;
+localparam BRANCH_JALR = 2'b10;
+localparam BMASK_B_ONE = 2'b11;
+localparam ALU_ADDR = 7'b0011100;
+localparam OPCODE_STORE = 7'h23;
+localparam ALU_PCKLO = 7'b0111000;
+localparam ALU_BSET = 7'b0101100;
+localparam MUL_IR = 3'b011;
+localparam ALU_GEU = 7'b0001011;
+localparam ALU_GES = 7'b0001010;
+localparam REGC_S4 = 2'b00;
+localparam ALU_CLB = 7'b0110101;
+localparam BMASK_B_REG = 1'b0;
+localparam ALU_NE = 7'b0001101;
+localparam ALU_SLTU = 7'b0000011;
+localparam SHARED_INT_MULT = 0;
+localparam C_FPU_FNMADD_CMD = 4'hA;
+localparam OPCODE_JAL = 7'h6f;
+localparam APUTYPE_DIVSQRT = (SHARED_FP_DIVSQRT == 2) ? (APUTYPE_FP + 4) : 0;
+localparam ALU_FEQ = 7'b1000011;
+localparam ALU_SHUF2 = 7'b0111011;
+localparam ALU_SRA = 7'b0100100;
+localparam APUTYPE_DSP_MULT = SHARED_DSP_MULT ? 0 : 0;
+localparam ALU_SRL = 7'b0100101;
+localparam C_FPU_ADD_CMD = 4'h0;
+localparam OPCODE_OP = 7'h33;
+localparam ALU_FMIN = 7'b1000111;
+localparam ALU_FLE = 7'b1000101;
+localparam OPCODE_OP_FNMADD = 7'h4f;
+localparam C_FPU_FMADD_CMD = 4'h8;
+localparam BRANCH_NONE = 2'b00;
+localparam ALU_ADD = 7'b0011000;
+localparam ALU_FLT = 7'b1000100;
+localparam JT_JAL = 2'b01;
+localparam MIMM_S3 = 1'b1;
+localparam ALU_MINU = 7'b0010001;
+localparam OP_A_IMM = 3'b010;
+localparam MUL_MAC32 = 3'b000;
+localparam ALU_FL1 = 7'b0110111;
+localparam OPCODE_BRANCH = 7'h63;
+localparam ALU_ABS = 7'b0010100;
+localparam ALU_SUB = 7'b0011001;
+localparam OP_C_REGB_OR_FWD = 2'b01;
+localparam OPCODE_SYSTEM = 7'h73;
+localparam OP_B_BMASK = 3'b100;
+localparam C_FPU_FMSUB_CMD = 4'h9;
+localparam CSR_OP_WRITE = 2'b01;
+localparam ALU_DIV = 7'b0110001;
+localparam ALU_BINS = 7'b0101010;
+localparam ALU_ADDU = 7'b0011010;
+localparam OP_A_REGC_OR_FWD = 3'b100;
+localparam OP_C_REGC_OR_FWD = 2'b00;
+localparam ALU_XOR = 7'b0101111;
+localparam BMASK_B_ZERO = 2'b10;
+localparam MIMM_ZERO = 1'b0;
+localparam ALU_INS = 7'b0101101;
+localparam OP_B_IMM = 3'b010;
+localparam BMASK_B_S3 = 2'b01;
+localparam BMASK_B_S2 = 2'b00;
+localparam OPCODE_JALR = 7'h67;
+localparam ALU_BEXT = 7'b0101000;
+localparam BRANCH_JAL = 2'b01;
+localparam ALU_REMU = 7'b0110010;
+localparam BMASK_A_REG = 1'b0;
+localparam IMMB_S = 4'b0001;
+localparam IMMB_U = 4'b0010;
+localparam ALU_SUBU = 7'b0011011;
+localparam ALU_EXTS = 7'b0111110;
+localparam OPCODE_STORE_POST = 7'h2b;
+localparam ALU_SLETS = 7'b0000110;
+localparam ALU_SLETU = 7'b0000111;
+localparam IMMB_I = 4'b0000;
+localparam IMMA_ZERO = 1'b1;
+localparam ALU_CLIP = 7'b0010110;
+localparam ALU_CLIPU = 7'b0010111;
+localparam ALU_LES = 7'b0000100;
+localparam BRANCH_COND = 2'b11;
+localparam MUL_DOT8 = 3'b100;
+localparam ALU_BCLR = 7'b0101011;
+localparam ALU_FMAX = 7'b1000110;
+localparam ALU_FCLASS = 7'b1001000;
+localparam APUTYPE_MULT = SHARED_FP ? (APUTYPE_FP + 1) : 0;
+localparam ALU_AND = 7'b0010101;
+localparam REGC_S1 = 2'b10;
+localparam OPCODE_OP_FMADD = 7'h43;
+localparam JT_COND = 2'b11;
+localparam ALU_FSGNJX = 7'b1000010;
+localparam CSR_OP_SET = 2'b10;
+localparam OP_C_JT = 2'b10;
+localparam ALU_EXT = 7'b0111111;
+localparam OP_A_CURRPC = 3'b001;
+localparam ALU_FSGNJN = 7'b1000001;
+localparam CSR_OP_NONE = 2'b00;
+localparam VEC_MODE16 = 2'b10;
+reg  data_req;
+reg  apu_en;
+reg [1:0] jump_in_id;
+reg [1:0] csr_op;
+reg [2:0] hwloop_we;
+reg  csr_illegal;
+reg  regfile_mem_we;
+reg  regfile_alu_we;
+assign   apu_en_o = deassert_we_i ? 1'b0 : apu_en;
+assign   regfile_mem_we_o = deassert_we_i ? 1'b0 : regfile_mem_we;
+assign   regfile_alu_we_o = deassert_we_i ? 1'b0 : regfile_alu_we;
+assign   data_req_o = deassert_we_i ? 1'b0 : data_req;
+assign   hwloop_we_o = deassert_we_i ? 3'b0 : hwloop_we;
+assign   csr_op_o = deassert_we_i ? CSR_OP_NONE : csr_op;
+assign   jump_in_id_o = deassert_we_i ? BRANCH_NONE : jump_in_id;
+assign   jump_in_dec_o = jump_in_id;
+always @(*) begin
+    jump_in_id = BRANCH_NONE;
+    jump_target_mux_sel_o = JT_JAL;
+    alu_en_o = 1'b1;
+    alu_operator_o = ALU_SLTU;
+    alu_op_a_mux_sel_o = OP_A_REGA_OR_FWD;
+    alu_op_b_mux_sel_o = OP_B_REGB_OR_FWD;
+    alu_op_c_mux_sel_o = OP_C_REGC_OR_FWD;
+    alu_vec_mode_o = VEC_MODE32;
+    scalar_replication_o = 1'b0;
+    regc_mux_o = REGC_ZERO;
+    imm_a_mux_sel_o = IMMA_ZERO;
+    imm_b_mux_sel_o = IMMB_I;
+    mult_operator_o = MUL_I;
+    mult_int_en_o = 1'b0;
+    mult_dot_en_o = 1'b0;
+    mult_imm_mux_o = MIMM_ZERO;
+    mult_signed_mode_o = 2'b00;
+    mult_sel_subword_o = 1'b0;
+    mult_dot_signed_o = 2'b00;
+    apu_en = 1'b0;
+    apu_type_o = 32'd0;
+    apu_op_o = 32'd0;
+    apu_lat_o = 32'd0;
+    apu_flags_src_o = 32'd0;
+    fp_rnd_mode_o = 32'd0;
+    fpu_op_o = 32'd0;
+    regfile_mem_we = 1'b0;
+    regfile_alu_we = 1'b0;
+    regfile_alu_waddr_sel_o = 1'b1;
+    prepost_useincr_o = 1'b1;
+    hwloop_we = 3'b0;
+    hwloop_target_mux_sel_o = 1'b0;
+    hwloop_start_mux_sel_o = 1'b0;
+    hwloop_cnt_mux_sel_o = 1'b0;
+    csr_access_o = 1'b0;
+    csr_status_o = 1'b0;
+    csr_illegal = 1'b0;
+    csr_op = CSR_OP_NONE;
+    mret_insn_o = 1'b0;
+    uret_insn_o = 1'b0;
+    data_we_o = 1'b0;
+    data_type_o = 2'b00;
+    data_sign_extension_o = 1'b0;
+    data_reg_offset_o = 2'b00;
+    data_req = 1'b0;
+    data_load_event_o = 1'b0;
+    illegal_insn_o = 1'b0;
+    ebrk_insn_o = 1'b0;
+    ecall_insn_o = 1'b0;
+    pipe_flush_o = 1'b0;
+    rega_used_o = 1'b0;
+    regb_used_o = 1'b0;
+    regc_used_o = 1'b0;
+    reg_fp_a_o = 1'b0;
+    reg_fp_b_o = 1'b0;
+    reg_fp_c_o = 1'b0;
+    reg_fp_d_o = 1'b0;
+    bmask_a_mux_o = BMASK_A_ZERO;
+    bmask_b_mux_o = BMASK_B_ZERO;
+    alu_bmask_a_mux_sel_o = BMASK_A_IMM;
+    alu_bmask_b_mux_sel_o = BMASK_B_IMM;
+    instr_multicycle_o = 1'b0;
+    case (instr_rdata_i[6:0])
+        OPCODE_JAL: begin
+            jump_target_mux_sel_o = JT_JAL;
+            jump_in_id = BRANCH_JAL;
+            alu_op_a_mux_sel_o = OP_A_CURRPC;
+            alu_op_b_mux_sel_o = OP_B_IMM;
+            imm_b_mux_sel_o = IMMB_PCINCR;
+            alu_operator_o = ALU_ADD;
+            regfile_alu_we = 1'b1;
+        end
+        OPCODE_JALR: begin
+            jump_target_mux_sel_o = JT_JALR;
+            jump_in_id = BRANCH_JALR;
+            alu_op_a_mux_sel_o = OP_A_CURRPC;
+            alu_op_b_mux_sel_o = OP_B_IMM;
+            imm_b_mux_sel_o = IMMB_PCINCR;
+            alu_operator_o = ALU_ADD;
+            regfile_alu_we = 1'b1;
+            rega_used_o = 1'b1;
+            if(instr_rdata_i[14:12] != 3'b0) begin
+                jump_in_id = BRANCH_NONE;
+                regfile_alu_we = 1'b0;
+                illegal_insn_o = 1'b1;
+            end
+        end
+        OPCODE_BRANCH: begin
+            jump_target_mux_sel_o = JT_COND;
+            jump_in_id = BRANCH_COND;
+            alu_op_c_mux_sel_o = OP_C_JT;
+            rega_used_o = 1'b1;
+            regb_used_o = 1'b1;
+            case (instr_rdata_i[14:12])
+                3'b000: alu_operator_o = ALU_EQ;
+                3'b001: alu_operator_o = ALU_NE;
+                3'b100: alu_operator_o = ALU_LTS;
+                3'b101: alu_operator_o = ALU_GES;
+                3'b110: alu_operator_o = ALU_LTU;
+                3'b111: alu_operator_o = ALU_GEU;
+                3'b010: begin
+                    alu_operator_o = ALU_EQ;
+                    regb_used_o = 1'b0;
+                    alu_op_b_mux_sel_o = OP_B_IMM;
+                    imm_b_mux_sel_o = IMMB_BI;
+                end
+                3'b011: begin
+                    alu_operator_o = ALU_NE;
+                    regb_used_o = 1'b0;
+                    alu_op_b_mux_sel_o = OP_B_IMM;
+                    imm_b_mux_sel_o = IMMB_BI;
+                end
+            endcase
+        end
+        OPCODE_STORE,OPCODE_STORE_POST: begin
+            data_req = 1'b1;
+            data_we_o = 1'b1;
+            rega_used_o = 1'b1;
+            regb_used_o = 1'b1;
+            alu_operator_o = ALU_ADD;
+            instr_multicycle_o = 1'b1;
+            alu_op_c_mux_sel_o = OP_C_REGB_OR_FWD;
+            if(instr_rdata_i[6:0] == OPCODE_STORE_POST) begin
+                prepost_useincr_o = 1'b0;
+                regfile_alu_waddr_sel_o = 1'b0;
+                regfile_alu_we = 1'b1;
+            end
+            if(~instr_rdata_i[14]) begin
+                imm_b_mux_sel_o = IMMB_S;
+                alu_op_b_mux_sel_o = OP_B_IMM;
+            end else begin
+                regc_used_o = 1'b1;
+                alu_op_b_mux_sel_o = OP_B_REGC_OR_FWD;
+                regc_mux_o = REGC_RD;
+            end
+            case (instr_rdata_i[13:12])
+                2'b00: data_type_o = 2'b10;
+                2'b01: data_type_o = 2'b01;
+                2'b10: data_type_o = 2'b00;
+                default: begin
+                    data_req = 1'b0;
+                    data_we_o = 1'b0;
+                    illegal_insn_o = 1'b1;
+                end
+            endcase
+        end
+        OPCODE_LOAD,OPCODE_LOAD_POST: begin
+            data_req = 1'b1;
+            regfile_mem_we = 1'b1;
+            rega_used_o = 1'b1;
+            data_type_o = 2'b00;
+            instr_multicycle_o = 1'b1;
+            alu_operator_o = ALU_ADD;
+            alu_op_b_mux_sel_o = OP_B_IMM;
+            imm_b_mux_sel_o = IMMB_I;
+            if(instr_rdata_i[6:0] == OPCODE_LOAD_POST) begin
+                prepost_useincr_o = 1'b0;
+                regfile_alu_waddr_sel_o = 1'b0;
+                regfile_alu_we = 1'b1;
+            end
+            data_sign_extension_o = ~instr_rdata_i[14];
+            case (instr_rdata_i[13:12])
+                2'b00: data_type_o = 2'b10;
+                2'b01: data_type_o = 2'b01;
+                2'b10: data_type_o = 2'b00;
+                default: data_type_o = 2'b00;
+            endcase
+            if(instr_rdata_i[14:12] == 3'b111) begin
+                regb_used_o = 1'b1;
+                alu_op_b_mux_sel_o = OP_B_REGB_OR_FWD;
+                data_sign_extension_o = ~instr_rdata_i[30];
+                case (instr_rdata_i[31:25])
+                    7'b0000_000,7'b0100_000: data_type_o = 2'b10;
+                    7'b0001_000,7'b0101_000: data_type_o = 2'b01;
+                    7'b0010_000: data_type_o = 2'b00;
+                    default: illegal_insn_o = 1'b1;
+                endcase
+            end
+            if(instr_rdata_i[14:12] == 3'b110) begin
+                data_load_event_o = 1'b1;
+            end
+            if(instr_rdata_i[14:12] == 3'b011) begin
+                illegal_insn_o = 1'b1;
+            end
+        end
+        OPCODE_LUI: begin
+            alu_op_a_mux_sel_o = OP_A_IMM;
+            alu_op_b_mux_sel_o = OP_B_IMM;
+            imm_a_mux_sel_o = IMMA_ZERO;
+            imm_b_mux_sel_o = IMMB_U;
+            alu_operator_o = ALU_ADD;
+            regfile_alu_we = 1'b1;
+        end
+        OPCODE_AUIPC: begin
+            alu_op_a_mux_sel_o = OP_A_CURRPC;
+            alu_op_b_mux_sel_o = OP_B_IMM;
+            imm_b_mux_sel_o = IMMB_U;
+            alu_operator_o = ALU_ADD;
+            regfile_alu_we = 1'b1;
+        end
+        OPCODE_OPIMM: begin
+            alu_op_b_mux_sel_o = OP_B_IMM;
+            imm_b_mux_sel_o = IMMB_I;
+            regfile_alu_we = 1'b1;
+            rega_used_o = 1'b1;
+            case (instr_rdata_i[14:12])
+                3'b000: alu_operator_o = ALU_ADD;
+                3'b010: alu_operator_o = ALU_SLTS;
+                3'b011: alu_operator_o = ALU_SLTU;
+                3'b100: alu_operator_o = ALU_XOR;
+                3'b110: alu_operator_o = ALU_OR;
+                3'b111: alu_operator_o = ALU_AND;
+                3'b001: begin
+                    alu_operator_o = ALU_SLL;
+                    if(instr_rdata_i[31:25] != 7'b0) begin
+                        illegal_insn_o = 1'b1;
+                    end
+                end
+                3'b101: if(instr_rdata_i[31:25] == 7'b0) begin
+                    alu_operator_o = ALU_SRL;
+                end else if(instr_rdata_i[31:25] == 7'b010_0000) begin
+                    alu_operator_o = ALU_SRA;
+                end else begin
+                    illegal_insn_o = 1'b1;
+                end
+            endcase
+        end
+        OPCODE_OP: begin
+            regfile_alu_we = 1'b1;
+            rega_used_o = 1'b1;
+            if(instr_rdata_i[31]) begin
+                bmask_a_mux_o = BMASK_A_S3;
+                bmask_b_mux_o = BMASK_B_S2;
+                alu_op_b_mux_sel_o = OP_B_IMM;
+                case (instr_rdata_i[14:12])
+                    3'b000: begin
+                        alu_operator_o = ALU_BEXT;
+                        imm_b_mux_sel_o = IMMB_S2;
+                        bmask_b_mux_o = BMASK_B_ZERO;
+                        if(~instr_rdata_i[30]) begin
+                            alu_op_b_mux_sel_o = OP_B_BMASK;
+                            alu_bmask_a_mux_sel_o = BMASK_A_REG;
+                            regb_used_o = 1'b1;
+                        end
+                    end
+                    3'b001: begin
+                        alu_operator_o = ALU_BEXTU;
+                        imm_b_mux_sel_o = IMMB_S2;
+                        bmask_b_mux_o = BMASK_B_ZERO;
+                        if(~instr_rdata_i[30]) begin
+                            alu_op_b_mux_sel_o = OP_B_BMASK;
+                            alu_bmask_a_mux_sel_o = BMASK_A_REG;
+                            regb_used_o = 1'b1;
+                        end
+                    end
+                    3'b010: begin
+                        alu_operator_o = ALU_BINS;
+                        imm_b_mux_sel_o = IMMB_S2;
+                        regc_used_o = 1'b1;
+                        regc_mux_o = REGC_RD;
+                        if(~instr_rdata_i[30]) begin
+                            alu_op_b_mux_sel_o = OP_B_BMASK;
+                            alu_bmask_a_mux_sel_o = BMASK_A_REG;
+                            alu_bmask_b_mux_sel_o = BMASK_B_REG;
+                            regb_used_o = 1'b1;
+                        end
+                    end
+                    3'b011: begin
+                        alu_operator_o = ALU_BCLR;
+                        if(~instr_rdata_i[30]) begin
+                            regb_used_o = 1'b1;
+                            alu_bmask_a_mux_sel_o = BMASK_A_REG;
+                            alu_bmask_b_mux_sel_o = BMASK_B_REG;
+                        end
+                    end
+                    3'b100: begin
+                        alu_operator_o = ALU_BSET;
+                        if(~instr_rdata_i[30]) begin
+                            regb_used_o = 1'b1;
+                            alu_bmask_a_mux_sel_o = BMASK_A_REG;
+                            alu_bmask_b_mux_sel_o = BMASK_B_REG;
+                        end
+                    end
+                    default: illegal_insn_o = 1'b1;
+                endcase
+            end else begin
+                if(~instr_rdata_i[28]) begin
+                    regb_used_o = 1'b1;
+                end
+                case ({instr_rdata_i[30:25], instr_rdata_i[14:12]})
+                    {6'b00_0000, 3'b000}: alu_operator_o = ALU_ADD;
+                    {6'b10_0000, 3'b000}: alu_operator_o = ALU_SUB;
+                    {6'b00_0000, 3'b010}: alu_operator_o = ALU_SLTS;
+                    {6'b00_0000, 3'b011}: alu_operator_o = ALU_SLTU;
+                    {6'b00_0000, 3'b100}: alu_operator_o = ALU_XOR;
+                    {6'b00_0000, 3'b110}: alu_operator_o = ALU_OR;
+                    {6'b00_0000, 3'b111}: alu_operator_o = ALU_AND;
+                    {6'b00_0000, 3'b001}: alu_operator_o = ALU_SLL;
+                    {6'b00_0000, 3'b101}: alu_operator_o = ALU_SRL;
+                    {6'b10_0000, 3'b101}: alu_operator_o = ALU_SRA;
+                    {6'b00_0001, 3'b000}: begin
+                        alu_en_o = 1'b0;
+                        mult_int_en_o = 1'b1;
+                        mult_operator_o = MUL_MAC32;
+                        regc_mux_o = REGC_ZERO;
+                    end
+                    {6'b00_0001, 3'b001}: begin
+                        alu_en_o = 1'b0;
+                        regc_used_o = 1'b1;
+                        regc_mux_o = REGC_ZERO;
+                        mult_signed_mode_o = 2'b11;
+                        mult_int_en_o = 1'b1;
+                        mult_operator_o = MUL_H;
+                        instr_multicycle_o = 1'b1;
+                    end
+                    {6'b00_0001, 3'b010}: begin
+                        alu_en_o = 1'b0;
+                        regc_used_o = 1'b1;
+                        regc_mux_o = REGC_ZERO;
+                        mult_signed_mode_o = 2'b01;
+                        mult_int_en_o = 1'b1;
+                        mult_operator_o = MUL_H;
+                        instr_multicycle_o = 1'b1;
+                    end
+                    {6'b00_0001, 3'b011}: begin
+                        alu_en_o = 1'b0;
+                        regc_used_o = 1'b1;
+                        regc_mux_o = REGC_ZERO;
+                        mult_signed_mode_o = 2'b00;
+                        mult_int_en_o = 1'b1;
+                        mult_operator_o = MUL_H;
+                        instr_multicycle_o = 1'b1;
+                    end
+                    {6'b00_0001, 3'b100}: begin
+                        alu_op_a_mux_sel_o = OP_A_REGB_OR_FWD;
+                        alu_op_b_mux_sel_o = OP_B_REGC_OR_FWD;
+                        regc_mux_o = REGC_S1;
+                        regc_used_o = 1'b1;
+                        regb_used_o = 1'b1;
+                        rega_used_o = 1'b0;
+                        alu_operator_o = ALU_DIV;
+                        instr_multicycle_o = 1'b1;
+                        if(SHARED_INT_DIV) begin
+                            alu_en_o = 1'b0;
+                            apu_en = 1'b1;
+                            apu_type_o = APUTYPE_INT_DIV;
+                            apu_op_o = alu_operator_o;
+                            apu_lat_o = 2'h3;
+                        end
+                    end
+                    {6'b00_0001, 3'b101}: begin
+                        alu_op_a_mux_sel_o = OP_A_REGB_OR_FWD;
+                        alu_op_b_mux_sel_o = OP_B_REGC_OR_FWD;
+                        regc_mux_o = REGC_S1;
+                        regc_used_o = 1'b1;
+                        regb_used_o = 1'b1;
+                        rega_used_o = 1'b0;
+                        alu_operator_o = ALU_DIVU;
+                        instr_multicycle_o = 1'b1;
+                        if(SHARED_INT_DIV) begin
+                            alu_en_o = 1'b0;
+                            apu_en = 1'b1;
+                            apu_type_o = APUTYPE_INT_DIV;
+                            apu_op_o = alu_operator_o;
+                            apu_lat_o = 2'h3;
+                        end
+                    end
+                    {6'b00_0001, 3'b110}: begin
+                        alu_op_a_mux_sel_o = OP_A_REGB_OR_FWD;
+                        alu_op_b_mux_sel_o = OP_B_REGC_OR_FWD;
+                        regc_mux_o = REGC_S1;
+                        regc_used_o = 1'b1;
+                        regb_used_o = 1'b1;
+                        rega_used_o = 1'b0;
+                        alu_operator_o = ALU_REM;
+                        instr_multicycle_o = 1'b1;
+                        if(SHARED_INT_DIV) begin
+                            alu_en_o = 1'b0;
+                            apu_en = 1'b1;
+                            apu_type_o = APUTYPE_INT_DIV;
+                            apu_op_o = alu_operator_o;
+                            apu_lat_o = 2'h3;
+                        end
+                    end
+                    {6'b00_0001, 3'b111}: begin
+                        alu_op_a_mux_sel_o = OP_A_REGB_OR_FWD;
+                        alu_op_b_mux_sel_o = OP_B_REGC_OR_FWD;
+                        regc_mux_o = REGC_S1;
+                        regc_used_o = 1'b1;
+                        regb_used_o = 1'b1;
+                        rega_used_o = 1'b0;
+                        alu_operator_o = ALU_REMU;
+                        instr_multicycle_o = 1'b1;
+                        if(SHARED_INT_DIV) begin
+                            alu_en_o = 1'b0;
+                            apu_en = 1'b1;
+                            apu_type_o = APUTYPE_INT_DIV;
+                            apu_op_o = alu_operator_o;
+                            apu_lat_o = 2'h3;
+                        end
+                    end
+                    {6'b10_0001, 3'b000}: begin
+                        alu_en_o = 1'b0;
+                        regc_used_o = 1'b1;
+                        regc_mux_o = REGC_RD;
+                        mult_int_en_o = 1'b1;
+                        mult_operator_o = MUL_MAC32;
+                        if(SHARED_INT_MULT) begin
+                            mult_int_en_o = 1'b0;
+                            mult_dot_en_o = 1'b0;
+                            apu_en = 1'b1;
+                            apu_flags_src_o = APU_FLAGS_INT_MULT;
+                            apu_op_o = mult_operator_o;
+                            apu_type_o = APUTYPE_INT_MULT;
+                            apu_lat_o = 2'h1;
+                        end
+                    end
+                    {6'b10_0001, 3'b001}: begin
+                        alu_en_o = 1'b0;
+                        regc_used_o = 1'b1;
+                        regc_mux_o = REGC_RD;
+                        mult_int_en_o = 1'b1;
+                        mult_operator_o = MUL_MSU32;
+                        if(SHARED_INT_MULT) begin
+                            mult_int_en_o = 1'b0;
+                            mult_dot_en_o = 1'b0;
+                            apu_en = 1'b1;
+                            apu_flags_src_o = APU_FLAGS_INT_MULT;
+                            apu_op_o = mult_operator_o;
+                            apu_type_o = APUTYPE_INT_MULT;
+                            apu_lat_o = 2'h1;
+                        end
+                    end
+                    {6'b00_0010, 3'b010}: alu_operator_o = ALU_SLETS;
+                    {6'b00_0010, 3'b011}: alu_operator_o = ALU_SLETU;
+                    {6'b00_0010, 3'b100}: alu_operator_o = ALU_MIN;
+                    {6'b00_0010, 3'b101}: alu_operator_o = ALU_MINU;
+                    {6'b00_0010, 3'b110}: alu_operator_o = ALU_MAX;
+                    {6'b00_0010, 3'b111}: alu_operator_o = ALU_MAXU;
+                    {6'b00_0100, 3'b101}: alu_operator_o = ALU_ROR;
+                    {6'b00_1000, 3'b000}: alu_operator_o = ALU_FF1;
+                    {6'b00_1000, 3'b001}: alu_operator_o = ALU_FL1;
+                    {6'b00_1000, 3'b010}: alu_operator_o = ALU_CLB;
+                    {6'b00_1000, 3'b011}: alu_operator_o = ALU_CNT;
+                    {6'b00_1000, 3'b100}: begin
+                        alu_operator_o = ALU_EXTS;
+                        alu_vec_mode_o = VEC_MODE16;
+                    end
+                    {6'b00_1000, 3'b101}: begin
+                        alu_operator_o = ALU_EXT;
+                        alu_vec_mode_o = VEC_MODE16;
+                    end
+                    {6'b00_1000, 3'b110}: begin
+                        alu_operator_o = ALU_EXTS;
+                        alu_vec_mode_o = VEC_MODE8;
+                    end
+                    {6'b00_1000, 3'b111}: begin
+                        alu_operator_o = ALU_EXT;
+                        alu_vec_mode_o = VEC_MODE8;
+                    end
+                    {6'b00_0010, 3'b000}: alu_operator_o = ALU_ABS;
+                    {6'b00_1010, 3'b001}: begin
+                        alu_operator_o = ALU_CLIP;
+                        alu_op_b_mux_sel_o = OP_B_IMM;
+                        imm_b_mux_sel_o = IMMB_CLIP;
+                    end
+                    {6'b00_1010, 3'b010}: begin
+                        alu_operator_o = ALU_CLIPU;
+                        alu_op_b_mux_sel_o = OP_B_IMM;
+                        imm_b_mux_sel_o = IMMB_CLIP;
+                    end
+                    {6'b00_1010, 3'b101}: begin
+                        alu_operator_o = ALU_CLIP;
+                        regb_used_o = 1'b1;
+                    end
+                    {6'b00_1010, 3'b110}: begin
+                        alu_operator_o = ALU_CLIPU;
+                        regb_used_o = 1'b1;
+                    end
+                    default: illegal_insn_o = 1'b1;
+                endcase
+            end
+        end
+        OPCODE_OP_FP: if(FPU) begin
+            fp_rnd_mode_o = instr_rdata_i[14:12];
+            if(instr_rdata_i[26:25] == 2'b00) begin
+                case (instr_rdata_i[31:27])
+                    5'h00: begin
+                        apu_type_o = APUTYPE_ADDSUB;
+                        apu_op_o = 2'b0;
+                        fpu_op_o = C_FPU_ADD_CMD;
+                        apu_lat_o = PIPE_REG_ADDSUB ? 2'h2 : 2'h1;
+                        if(FPU) begin
+                            apu_en = 1'b1;
+                            alu_en_o = 1'b0;
+                            apu_flags_src_o = APU_FLAGS_FP;
+                            rega_used_o = 1'b1;
+                            regb_used_o = 1'b1;
+                            reg_fp_a_o = 1'b1;
+                            reg_fp_b_o = 1'b1;
+                            reg_fp_d_o = 1'b1;
+                        end
+                    end
+                    5'h01: begin
+                        apu_type_o = APUTYPE_ADDSUB;
+                        apu_op_o = 2'b1;
+                        fpu_op_o = C_FPU_SUB_CMD;
+                        apu_lat_o = PIPE_REG_ADDSUB ? 2'h2 : 2'h1;
+                        if(FPU) begin
+                            apu_en = 1'b1;
+                            alu_en_o = 1'b0;
+                            apu_flags_src_o = APU_FLAGS_FP;
+                            rega_used_o = 1'b1;
+                            regb_used_o = 1'b1;
+                            reg_fp_a_o = 1'b1;
+                            reg_fp_b_o = 1'b1;
+                            reg_fp_d_o = 1'b1;
+                        end
+                    end
+                    5'h02: begin
+                        apu_type_o = APUTYPE_MULT;
+                        fpu_op_o = C_FPU_MUL_CMD;
+                        apu_lat_o = PIPE_REG_MULT ? 2'h2 : 2'h1;
+                        if(FPU) begin
+                            apu_en = 1'b1;
+                            alu_en_o = 1'b0;
+                            apu_flags_src_o = APU_FLAGS_FP;
+                            rega_used_o = 1'b1;
+                            regb_used_o = 1'b1;
+                            reg_fp_a_o = 1'b1;
+                            reg_fp_b_o = 1'b1;
+                            reg_fp_d_o = 1'b1;
+                        end
+                    end
+                    5'h03: if(SHARED_FP_DIVSQRT) begin
+                        apu_type_o = APUTYPE_DIV;
+                        apu_lat_o = 2'h3;
+                        if(FPU) begin
+                            apu_en = 1'b1;
+                            alu_en_o = 1'b0;
+                            apu_flags_src_o = APU_FLAGS_FP;
+                            rega_used_o = 1'b1;
+                            regb_used_o = 1'b1;
+                            reg_fp_a_o = 1'b1;
+                            reg_fp_b_o = 1'b1;
+                            reg_fp_d_o = 1'b1;
+                        end
+                    end else if(SHARED_FP_DIVSQRT == 2) begin
+                        apu_type_o = APUTYPE_DIVSQRT;
+                        apu_lat_o = 2'h3;
+                        apu_op_o = 1'b0;
+                        fpu_op_o = C_FPU_DIV_CMD;
+                        if(FPU) begin
+                            apu_en = 1'b1;
+                            alu_en_o = 1'b0;
+                            apu_flags_src_o = APU_FLAGS_FP;
+                            rega_used_o = 1'b1;
+                            regb_used_o = 1'b1;
+                            reg_fp_a_o = 1'b1;
+                            reg_fp_b_o = 1'b1;
+                            reg_fp_d_o = 1'b1;
+                        end
+                    end else begin
+                        illegal_insn_o = 1'b1;
+                    end
+                    5'h0b: if(SHARED_FP_DIVSQRT) begin
+                        apu_type_o = APUTYPE_SQRT;
+                        apu_lat_o = 2'h3;
+                        if(FPU) begin
+                            apu_en = 1'b1;
+                            alu_en_o = 1'b0;
+                            apu_flags_src_o = APU_FLAGS_FP;
+                            rega_used_o = 1'b1;
+                            regb_used_o = 1'b1;
+                            reg_fp_a_o = 1'b1;
+                            reg_fp_b_o = 1'b1;
+                            reg_fp_d_o = 1'b1;
+                        end
+                    end else if(SHARED_FP_DIVSQRT == 2) begin
+                        apu_type_o = APUTYPE_DIVSQRT;
+                        apu_lat_o = 2'h3;
+                        apu_op_o = 1'b1;
+                        fpu_op_o = C_FPU_SQRT_CMD;
+                        if(FPU) begin
+                            apu_en = 1'b1;
+                            alu_en_o = 1'b0;
+                            apu_flags_src_o = APU_FLAGS_FP;
+                            rega_used_o = 1'b1;
+                            regb_used_o = 1'b1;
+                            reg_fp_a_o = 1'b1;
+                            reg_fp_b_o = 1'b1;
+                            reg_fp_d_o = 1'b1;
+                        end
+                    end else begin
+                        illegal_insn_o = 1'b1;
+                    end
+                    5'h04: begin
+                        rega_used_o = 1'b1;
+                        regb_used_o = 1'b1;
+                        regfile_alu_we = 1'b1;
+                        reg_fp_a_o = 1'b1;
+                        reg_fp_b_o = 1'b1;
+                        reg_fp_d_o = 1'b1;
+                        case (instr_rdata_i[14:12])
+                            3'h0: alu_operator_o = ALU_FSGNJ;
+                            3'h1: alu_operator_o = ALU_FSGNJN;
+                            3'h2: alu_operator_o = ALU_FSGNJX;
+                            default: illegal_insn_o = 1'b1;
+                        endcase
+                    end
+                    5'h05: begin
+                        rega_used_o = 1'b1;
+                        regb_used_o = 1'b1;
+                        regfile_alu_we = 1'b1;
+                        reg_fp_a_o = 1'b1;
+                        reg_fp_b_o = 1'b1;
+                        reg_fp_d_o = 1'b1;
+                        case (instr_rdata_i[14:12])
+                            3'h0: alu_operator_o = ALU_FMIN;
+                            3'h1: alu_operator_o = ALU_FMAX;
+                            default: illegal_insn_o = 1'b1;
+                        endcase
+                    end
+                    5'h08: begin
+                        rega_used_o = 1'b1;
+                        regb_used_o = 1'b0;
+                        regfile_alu_we = 1'b1;
+                        reg_fp_a_o = 1'b1;
+                        reg_fp_d_o = 1'b1;
+                        alu_operator_o = ALU_FKEEP;
+                    end
+                    5'h14: begin
+                        rega_used_o = 1'b1;
+                        regb_used_o = 1'b1;
+                        regfile_alu_we = 1'b1;
+                        reg_fp_a_o = 1'b1;
+                        reg_fp_b_o = 1'b1;
+                        case (instr_rdata_i[14:12])
+                            3'h0: alu_operator_o = ALU_FLE;
+                            3'h1: alu_operator_o = ALU_FLT;
+                            3'h2: alu_operator_o = ALU_FEQ;
+                            default: illegal_insn_o = 1'b1;
+                        endcase
+                    end
+                    5'h18: begin
+                        rega_used_o = 1'b1;
+                        regfile_alu_we = 1'b1;
+                        reg_fp_a_o = 1'b1;
+                        apu_en = 1'b1;
+                        apu_flags_src_o = APU_FLAGS_FP;
+                        apu_type_o = APUTYPE_CAST;
+                        apu_op_o = 2'b1;
+                        apu_lat_o = PIPE_REG_CAST ? 2'h2 : 2'h1;
+                        fpu_op_o = C_FPU_F2I_CMD;
+                    end
+                    5'h1A: begin
+                        rega_used_o = 1'b1;
+                        regfile_alu_we = 1'b1;
+                        reg_fp_d_o = 1'b1;
+                        apu_en = 1'b1;
+                        apu_flags_src_o = APU_FLAGS_FP;
+                        apu_type_o = APUTYPE_CAST;
+                        apu_op_o = 2'b0;
+                        apu_lat_o = PIPE_REG_CAST ? 2'h2 : 2'h1;
+                        fpu_op_o = C_FPU_I2F_CMD;
+                    end
+                    5'h1E: begin
+                        rega_used_o = 1'b1;
+                        regb_used_o = 1'b1;
+                        alu_operator_o = ALU_ADD;
+                        regfile_alu_we = 1'b1;
+                        reg_fp_d_o = 1'b1;
+                    end
+                    5'h1C: case (instr_rdata_i[14:12])
+                        3'h0: begin
+                            rega_used_o = 1'b1;
+                            regb_used_o = 1'b1;
+                            alu_operator_o = ALU_ADD;
+                            regfile_alu_we = 1'b1;
+                            reg_fp_a_o = 1'b1;
+                        end
+                        3'h1: begin
+                            rega_used_o = 1'b1;
+                            regfile_alu_we = 1'b1;
+                            reg_fp_a_o = 1'b1;
+                            alu_operator_o = ALU_FCLASS;
+                        end
+                        default: illegal_insn_o = 1'b1;
+                    endcase
+                    default: illegal_insn_o = 1'b1;
+                endcase
+            end else if(instr_rdata_i[26:25] == 2'b01) begin
+                case (instr_rdata_i[31:27])
+                    5'h08: begin
+                        rega_used_o = 1'b1;
+                        regb_used_o = 1'b0;
+                        regfile_alu_we = 1'b1;
+                        reg_fp_a_o = 1'b1;
+                        reg_fp_d_o = 1'b1;
+                        alu_operator_o = ALU_FKEEP;
+                    end
+                    default: illegal_insn_o = 1'b1;
+                endcase
+            end
+        end else begin
+            illegal_insn_o = 1'b1;
+        end
+        OPCODE_OP_FMADD: if(FPU) begin
+            fp_rnd_mode_o = instr_rdata_i[14:12];
+            if(instr_rdata_i[26:25] == 2'b00) begin
+                apu_type_o = APUTYPE_MAC;
+                apu_lat_o = (PIPE_REG_MAC > 1) ? 2'h3 : 2'h2;
+                apu_op_o = 2'b0;
+                fpu_op_o = C_FPU_FMADD_CMD;
+                if(FPU) begin
+                    apu_en = 1'b1;
+                    alu_en_o = 1'b0;
+                    apu_flags_src_o = APU_FLAGS_FP;
+                    rega_used_o = 1'b1;
+                    regb_used_o = 1'b1;
+                    regc_used_o = 1'b1;
+                    reg_fp_a_o = 1'b1;
+                    reg_fp_b_o = 1'b1;
+                    reg_fp_c_o = 1'b1;
+                    reg_fp_d_o = 1'b1;
+                    regc_mux_o = REGC_S4;
+                end
+            end
+        end else begin
+            illegal_insn_o = 1'b1;
+        end
+        OPCODE_OP_FMSUB: if(FPU) begin
+            fp_rnd_mode_o = instr_rdata_i[14:12];
+            if(instr_rdata_i[26:25] == 2'b00) begin
+                apu_type_o = APUTYPE_MAC;
+                apu_lat_o = (PIPE_REG_MAC > 1) ? 2'h3 : 2'h2;
+                apu_op_o = 2'b1;
+                fpu_op_o = C_FPU_FMSUB_CMD;
+                if(FPU) begin
+                    apu_en = 1'b1;
+                    alu_en_o = 1'b0;
+                    apu_flags_src_o = APU_FLAGS_FP;
+                    rega_used_o = 1'b1;
+                    regb_used_o = 1'b1;
+                    regc_used_o = 1'b1;
+                    reg_fp_a_o = 1'b1;
+                    reg_fp_b_o = 1'b1;
+                    reg_fp_c_o = 1'b1;
+                    reg_fp_d_o = 1'b1;
+                    regc_mux_o = REGC_S4;
+                end
+            end
+        end else begin
+            illegal_insn_o = 1'b1;
+        end
+        OPCODE_OP_FNMADD: if(FPU) begin
+            fp_rnd_mode_o = instr_rdata_i[14:12];
+            if(instr_rdata_i[26:25] == 2'b00) begin
+                apu_type_o = APUTYPE_MAC;
+                apu_lat_o = (PIPE_REG_MAC > 1) ? 2'h3 : 2'h2;
+                apu_op_o = 2'b11;
+                fpu_op_o = C_FPU_FNMADD_CMD;
+                if(FPU) begin
+                    apu_en = 1'b1;
+                    alu_en_o = 1'b0;
+                    apu_flags_src_o = APU_FLAGS_FP;
+                    rega_used_o = 1'b1;
+                    regb_used_o = 1'b1;
+                    regc_used_o = 1'b1;
+                    reg_fp_a_o = 1'b1;
+                    reg_fp_b_o = 1'b1;
+                    reg_fp_c_o = 1'b1;
+                    reg_fp_d_o = 1'b1;
+                    regc_mux_o = REGC_S4;
+                end
+            end
+        end else begin
+            illegal_insn_o = 1'b1;
+        end
+        OPCODE_OP_FNMSUB: if(FPU) begin
+            fp_rnd_mode_o = instr_rdata_i[14:12];
+            if(instr_rdata_i[26:25] == 2'b00) begin
+                apu_type_o = APUTYPE_MAC;
+                apu_lat_o = (PIPE_REG_MAC > 1) ? 2'h3 : 2'h2;
+                apu_op_o = 2'b10;
+                fpu_op_o = C_FPU_FNMSUB_CMD;
+                if(FPU) begin
+                    apu_en = 1'b1;
+                    alu_en_o = 1'b0;
+                    apu_flags_src_o = APU_FLAGS_FP;
+                    rega_used_o = 1'b1;
+                    regb_used_o = 1'b1;
+                    regc_used_o = 1'b1;
+                    reg_fp_a_o = 1'b1;
+                    reg_fp_b_o = 1'b1;
+                    reg_fp_c_o = 1'b1;
+                    reg_fp_d_o = 1'b1;
+                    regc_mux_o = REGC_S4;
+                end
+            end
+        end else begin
+            illegal_insn_o = 1'b1;
+        end
+        OPCODE_STORE_FP: if(FPU) begin
+            case (instr_rdata_i[14:12])
+                3'b010,3'b011: begin
+                    data_req = 1'b1;
+                    data_we_o = 1'b1;
+                    rega_used_o = 1'b1;
+                    regb_used_o = 1'b1;
+                    alu_operator_o = ALU_ADD;
+                    reg_fp_b_o = 1'b1;
+                    imm_b_mux_sel_o = IMMB_S;
+                    alu_op_b_mux_sel_o = OP_B_IMM;
+                    alu_op_c_mux_sel_o = OP_C_REGB_OR_FWD;
+                    data_type_o = 2'b00;
+                end
+                default: illegal_insn_o = 1'b1;
+            endcase
+        end else begin
+            illegal_insn_o = 1'b1;
+        end
+        OPCODE_LOAD_FP: if(FPU) begin
+            case (instr_rdata_i[14:12])
+                3'b010,3'b011: begin
+                    data_req = 1'b1;
+                    regfile_mem_we = 1'b1;
+                    reg_fp_d_o = 1'b1;
+                    rega_used_o = 1'b1;
+                    data_type_o = 2'b00;
+                    alu_operator_o = ALU_ADD;
+                    alu_op_b_mux_sel_o = OP_B_IMM;
+                    imm_b_mux_sel_o = IMMB_I;
+                end
+                default: illegal_insn_o = 1'b1;
+            endcase
+        end else begin
+            illegal_insn_o = 1'b1;
+        end
+        OPCODE_PULP_OP: begin
+            regfile_alu_we = 1'b1;
+            rega_used_o = 1'b1;
+            regb_used_o = 1'b1;
+            case (instr_rdata_i[13:12])
+                2'b00: begin
+                    alu_en_o = 1'b0;
+                    mult_sel_subword_o = instr_rdata_i[30];
+                    mult_signed_mode_o = { 2 { instr_rdata_i[31:31] }};
+                    mult_imm_mux_o = MIMM_S3;
+                    regc_mux_o = REGC_ZERO;
+                    mult_int_en_o = 1'b1;
+                    if(instr_rdata_i[14]) begin
+                        mult_operator_o = MUL_IR;
+                    end else begin
+                        mult_operator_o = MUL_I;
+                    end
+                    if(SHARED_INT_MULT) begin
+                        mult_int_en_o = 1'b0;
+                        mult_dot_en_o = 1'b0;
+                        apu_en = 1'b1;
+                        apu_flags_src_o = APU_FLAGS_INT_MULT;
+                        apu_op_o = mult_operator_o;
+                        apu_type_o = APUTYPE_INT_MULT;
+                        apu_lat_o = 2'h1;
+                    end
+                end
+                2'b01: begin
+                    alu_en_o = 1'b0;
+                    mult_sel_subword_o = instr_rdata_i[30];
+                    mult_signed_mode_o = { 2 { instr_rdata_i[31:31] }};
+                    regc_used_o = 1'b1;
+                    regc_mux_o = REGC_RD;
+                    mult_imm_mux_o = MIMM_S3;
+                    mult_int_en_o = 1'b1;
+                    if(instr_rdata_i[14]) begin
+                        mult_operator_o = MUL_IR;
+                    end else begin
+                        mult_operator_o = MUL_I;
+                    end
+                    if(SHARED_INT_MULT) begin
+                        mult_int_en_o = 1'b0;
+                        mult_dot_en_o = 1'b0;
+                        apu_en = 1'b1;
+                        apu_flags_src_o = APU_FLAGS_INT_MULT;
+                        apu_op_o = mult_operator_o;
+                        apu_type_o = APUTYPE_INT_MULT;
+                        apu_lat_o = 2'h1;
+                    end
+                end
+                2'b10: begin
+                    case ({instr_rdata_i[31], instr_rdata_i[14]})
+                        2'b00: alu_operator_o = ALU_ADD;
+                        2'b01: alu_operator_o = ALU_ADDR;
+                        2'b10: alu_operator_o = ALU_ADDU;
+                        2'b11: alu_operator_o = ALU_ADDUR;
+                    endcase
+                    bmask_a_mux_o = BMASK_A_ZERO;
+                    bmask_b_mux_o = BMASK_B_S3;
+                    if(instr_rdata_i[30]) begin
+                        regc_used_o = 1'b1;
+                        regc_mux_o = REGC_RD;
+                        alu_bmask_b_mux_sel_o = BMASK_B_REG;
+                        alu_op_a_mux_sel_o = OP_A_REGC_OR_FWD;
+                        alu_op_b_mux_sel_o = OP_B_REGA_OR_FWD;
+                    end
+                end
+                2'b11: begin
+                    case ({instr_rdata_i[31], instr_rdata_i[14]})
+                        2'b00: alu_operator_o = ALU_SUB;
+                        2'b01: alu_operator_o = ALU_SUBR;
+                        2'b10: alu_operator_o = ALU_SUBU;
+                        2'b11: alu_operator_o = ALU_SUBUR;
+                    endcase
+                    bmask_a_mux_o = BMASK_A_ZERO;
+                    bmask_b_mux_o = BMASK_B_S3;
+                    if(instr_rdata_i[30]) begin
+                        regc_used_o = 1'b1;
+                        regc_mux_o = REGC_RD;
+                        alu_bmask_b_mux_sel_o = BMASK_B_REG;
+                        alu_op_a_mux_sel_o = OP_A_REGC_OR_FWD;
+                        alu_op_b_mux_sel_o = OP_B_REGA_OR_FWD;
+                    end
+                end
+            endcase
+        end
+        OPCODE_VECOP: begin
+            regfile_alu_we = 1'b1;
+            rega_used_o = 1'b1;
+            imm_b_mux_sel_o = IMMB_VS;
+            if(instr_rdata_i[12]) begin
+                alu_vec_mode_o = VEC_MODE8;
+                mult_operator_o = MUL_DOT8;
+            end else begin
+                alu_vec_mode_o = VEC_MODE16;
+                mult_operator_o = MUL_DOT16;
+            end
+            if(instr_rdata_i[14]) begin
+                scalar_replication_o = 1'b1;
+                if(instr_rdata_i[13]) begin
+                    alu_op_b_mux_sel_o = OP_B_IMM;
+                end else begin
+                    regb_used_o = 1'b1;
+                end
+            end else begin
+                regb_used_o = 1'b1;
+            end
+            case (instr_rdata_i[31:26])
+                6'b00000_0: begin
+                    alu_operator_o = ALU_ADD;
+                    imm_b_mux_sel_o = IMMB_VS;
+                end
+                6'b00001_0: begin
+                    alu_operator_o = ALU_SUB;
+                    imm_b_mux_sel_o = IMMB_VS;
+                end
+                6'b00010_0: begin
+                    alu_operator_o = ALU_ADD;
+                    imm_b_mux_sel_o = IMMB_VS;
+                    bmask_b_mux_o = BMASK_B_ONE;
+                end
+                6'b00011_0: begin
+                    alu_operator_o = ALU_ADDU;
+                    imm_b_mux_sel_o = IMMB_VU;
+                    bmask_b_mux_o = BMASK_B_ONE;
+                end
+                6'b00100_0: begin
+                    alu_operator_o = ALU_MIN;
+                    imm_b_mux_sel_o = IMMB_VS;
+                end
+                6'b00101_0: begin
+                    alu_operator_o = ALU_MINU;
+                    imm_b_mux_sel_o = IMMB_VU;
+                end
+                6'b00110_0: begin
+                    alu_operator_o = ALU_MAX;
+                    imm_b_mux_sel_o = IMMB_VS;
+                end
+                6'b00111_0: begin
+                    alu_operator_o = ALU_MAXU;
+                    imm_b_mux_sel_o = IMMB_VU;
+                end
+                6'b01000_0: begin
+                    alu_operator_o = ALU_SRL;
+                    imm_b_mux_sel_o = IMMB_VS;
+                end
+                6'b01001_0: begin
+                    alu_operator_o = ALU_SRA;
+                    imm_b_mux_sel_o = IMMB_VS;
+                end
+                6'b01010_0: begin
+                    alu_operator_o = ALU_SLL;
+                    imm_b_mux_sel_o = IMMB_VS;
+                end
+                6'b01011_0: begin
+                    alu_operator_o = ALU_OR;
+                    imm_b_mux_sel_o = IMMB_VS;
+                end
+                6'b01100_0: begin
+                    alu_operator_o = ALU_XOR;
+                    imm_b_mux_sel_o = IMMB_VS;
+                end
+                6'b01101_0: begin
+                    alu_operator_o = ALU_AND;
+                    imm_b_mux_sel_o = IMMB_VS;
+                end
+                6'b01110_0: begin
+                    alu_operator_o = ALU_ABS;
+                    imm_b_mux_sel_o = IMMB_VS;
+                end
+                6'b11101_0,6'b11110_0,6'b11111_0,6'b11000_0: begin
+                    alu_operator_o = ALU_SHUF;
+                    imm_b_mux_sel_o = IMMB_SHUF;
+                    regb_used_o = 1'b1;
+                    scalar_replication_o = 1'b0;
+                end
+                6'b11001_0: begin
+                    alu_operator_o = ALU_SHUF2;
+                    regb_used_o = 1'b1;
+                    regc_used_o = 1'b1;
+                    regc_mux_o = REGC_RD;
+                    scalar_replication_o = 1'b0;
+                end
+                6'b11010_0: begin
+                    alu_operator_o = ALU_PCKLO;
+                    regb_used_o = 1'b1;
+                end
+                6'b11011_0: begin
+                    alu_operator_o = ALU_PCKHI;
+                    regb_used_o = 1'b1;
+                    regc_used_o = 1'b1;
+                    regc_mux_o = REGC_RD;
+                end
+                6'b11100_0: begin
+                    alu_operator_o = ALU_PCKLO;
+                    regb_used_o = 1'b1;
+                    regc_used_o = 1'b1;
+                    regc_mux_o = REGC_RD;
+                end
+                6'b01111_0: alu_operator_o = ALU_EXTS;
+                6'b10010_0: alu_operator_o = ALU_EXT;
+                6'b10110_0: begin
+                    alu_operator_o = ALU_INS;
+                    regc_used_o = 1'b1;
+                    regc_mux_o = REGC_RD;
+                    alu_op_b_mux_sel_o = OP_B_REGC_OR_FWD;
+                end
+                6'b10000_0: begin
+                    alu_en_o = 1'b0;
+                    mult_dot_en_o = 1'b1;
+                    mult_dot_signed_o = 2'b00;
+                    if(SHARED_DSP_MULT) begin
+                        mult_int_en_o = 1'b0;
+                        mult_dot_en_o = 1'b0;
+                        apu_en = 1'b1;
+                        apu_type_o = APUTYPE_DSP_MULT;
+                        apu_flags_src_o = APU_FLAGS_DSP_MULT;
+                        apu_op_o = mult_operator_o;
+                        apu_lat_o = PIPE_REG_DSP_MULT ? 2'h2 : 2'h1;
+                    end
+                end
+                6'b10001_0: begin
+                    alu_en_o = 1'b0;
+                    mult_dot_en_o = 1'b1;
+                    mult_dot_signed_o = 2'b01;
+                    if(SHARED_DSP_MULT) begin
+                        mult_int_en_o = 1'b0;
+                        mult_dot_en_o = 1'b0;
+                        apu_en = 1'b1;
+                        apu_type_o = APUTYPE_DSP_MULT;
+                        apu_flags_src_o = APU_FLAGS_DSP_MULT;
+                        apu_op_o = mult_operator_o;
+                        apu_lat_o = PIPE_REG_DSP_MULT ? 2'h2 : 2'h1;
+                    end
+                end
+                6'b10011_0: begin
+                    alu_en_o = 1'b0;
+                    mult_dot_en_o = 1'b1;
+                    mult_dot_signed_o = 2'b11;
+                    if(SHARED_DSP_MULT) begin
+                        mult_int_en_o = 1'b0;
+                        mult_dot_en_o = 1'b0;
+                        apu_en = 1'b1;
+                        apu_type_o = APUTYPE_DSP_MULT;
+                        apu_flags_src_o = APU_FLAGS_DSP_MULT;
+                        apu_op_o = mult_operator_o;
+                        apu_lat_o = PIPE_REG_DSP_MULT ? 2'h2 : 2'h1;
+                    end
+                end
+                6'b10100_0: begin
+                    alu_en_o = 1'b0;
+                    mult_dot_en_o = 1'b1;
+                    mult_dot_signed_o = 2'b00;
+                    regc_used_o = 1'b1;
+                    regc_mux_o = REGC_RD;
+                    if(SHARED_DSP_MULT) begin
+                        mult_int_en_o = 1'b0;
+                        mult_dot_en_o = 1'b0;
+                        apu_en = 1'b1;
+                        apu_type_o = APUTYPE_DSP_MULT;
+                        apu_flags_src_o = APU_FLAGS_DSP_MULT;
+                        apu_op_o = mult_operator_o;
+                        apu_lat_o = PIPE_REG_DSP_MULT ? 2'h2 : 2'h1;
+                    end
+                end
+                6'b10101_0: begin
+                    alu_en_o = 1'b0;
+                    mult_dot_en_o = 1'b1;
+                    mult_dot_signed_o = 2'b01;
+                    regc_used_o = 1'b1;
+                    regc_mux_o = REGC_RD;
+                    if(SHARED_DSP_MULT) begin
+                        mult_int_en_o = 1'b0;
+                        mult_dot_en_o = 1'b0;
+                        apu_en = 1'b1;
+                        apu_type_o = APUTYPE_DSP_MULT;
+                        apu_flags_src_o = APU_FLAGS_DSP_MULT;
+                        apu_op_o = mult_operator_o;
+                        apu_lat_o = PIPE_REG_DSP_MULT ? 2'h2 : 2'h1;
+                    end
+                end
+                6'b10111_0: begin
+                    alu_en_o = 1'b0;
+                    mult_dot_en_o = 1'b1;
+                    mult_dot_signed_o = 2'b11;
+                    regc_used_o = 1'b1;
+                    regc_mux_o = REGC_RD;
+                    if(SHARED_DSP_MULT) begin
+                        mult_int_en_o = 1'b0;
+                        mult_dot_en_o = 1'b0;
+                        apu_en = 1'b1;
+                        apu_type_o = APUTYPE_DSP_MULT;
+                        apu_flags_src_o = APU_FLAGS_DSP_MULT;
+                        apu_op_o = mult_operator_o;
+                        apu_lat_o = PIPE_REG_DSP_MULT ? 2'h2 : 2'h1;
+                    end
+                end
+                6'b00000_1: begin
+                    alu_operator_o = ALU_EQ;
+                    imm_b_mux_sel_o = IMMB_VS;
+                end
+                6'b00001_1: begin
+                    alu_operator_o = ALU_NE;
+                    imm_b_mux_sel_o = IMMB_VS;
+                end
+                6'b00010_1: begin
+                    alu_operator_o = ALU_GTS;
+                    imm_b_mux_sel_o = IMMB_VS;
+                end
+                6'b00011_1: begin
+                    alu_operator_o = ALU_GES;
+                    imm_b_mux_sel_o = IMMB_VS;
+                end
+                6'b00100_1: begin
+                    alu_operator_o = ALU_LTS;
+                    imm_b_mux_sel_o = IMMB_VS;
+                end
+                6'b00101_1: begin
+                    alu_operator_o = ALU_LES;
+                    imm_b_mux_sel_o = IMMB_VS;
+                end
+                6'b00110_1: begin
+                    alu_operator_o = ALU_GTU;
+                    imm_b_mux_sel_o = IMMB_VU;
+                end
+                6'b00111_1: begin
+                    alu_operator_o = ALU_GEU;
+                    imm_b_mux_sel_o = IMMB_VU;
+                end
+                6'b01000_1: begin
+                    alu_operator_o = ALU_LTU;
+                    imm_b_mux_sel_o = IMMB_VU;
+                end
+                6'b01001_1: begin
+                    alu_operator_o = ALU_LEU;
+                    imm_b_mux_sel_o = IMMB_VU;
+                end
+                default: illegal_insn_o = 1'b1;
+            endcase
+        end
+        OPCODE_SYSTEM: if(instr_rdata_i[14:12] == 3'b000) begin
+            case (instr_rdata_i[31:20])
+                12'h000: ecall_insn_o = 1'b1;
+                12'h001: ebrk_insn_o = 1'b1;
+                12'h302: begin
+                    illegal_insn_o = PULP_SECURE ? (current_priv_lvl_i != PRIV_LVL_M) : 1'b0;
+                    mret_insn_o = ~illegal_insn_o;
+                end
+                12'h002: uret_insn_o = PULP_SECURE ? 1'b1 : 1'b0;
+                12'h105: pipe_flush_o = 1'b1;
+                default: illegal_insn_o = 1'b1;
+            endcase
+        end else begin
+            csr_access_o = 1'b1;
+            regfile_alu_we = 1'b1;
+            alu_op_b_mux_sel_o = OP_B_IMM;
+            imm_a_mux_sel_o = IMMA_Z;
+            imm_b_mux_sel_o = IMMB_I;
+            instr_multicycle_o = 1'b1;
+            if(instr_rdata_i[14]) begin
+                alu_op_a_mux_sel_o = OP_A_IMM;
+            end else begin
+                rega_used_o = 1'b1;
+                alu_op_a_mux_sel_o = OP_A_REGA_OR_FWD;
+            end
+            case (instr_rdata_i[13:12])
+                2'b01: csr_op = CSR_OP_WRITE;
+                2'b10: csr_op = CSR_OP_SET;
+                2'b11: csr_op = CSR_OP_CLEAR;
+                default: csr_illegal = 1'b1;
+            endcase
+            if(instr_rdata_i[29:28] > current_priv_lvl_i) begin
+                csr_illegal = 1'b1;
+            end
+            if(~csr_illegal) begin
+                if((instr_rdata_i[31:20] == 12'h300) || (instr_rdata_i[31:20] == 12'h000)) begin
+                    csr_status_o = 1'b1;
+                end
+            end
+            illegal_insn_o = csr_illegal;
+        end
+        OPCODE_HWLOOP: begin
+            hwloop_target_mux_sel_o = 1'b0;
+            case (instr_rdata_i[14:12])
+                3'b000: begin
+                    hwloop_we[0] = 1'b1;
+                    hwloop_start_mux_sel_o = 1'b0;
+                end
+                3'b001: hwloop_we[1] = 1'b1;
+                3'b010: begin
+                    hwloop_we[2] = 1'b1;
+                    hwloop_cnt_mux_sel_o = 1'b1;
+                    rega_used_o = 1'b1;
+                end
+                3'b011: begin
+                    hwloop_we[2] = 1'b1;
+                    hwloop_cnt_mux_sel_o = 1'b0;
+                end
+                3'b100: begin
+                    hwloop_we = 3'b111;
+                    hwloop_start_mux_sel_o = 1'b1;
+                    hwloop_cnt_mux_sel_o = 1'b1;
+                    rega_used_o = 1'b1;
+                end
+                3'b101: begin
+                    hwloop_we = 3'b111;
+                    hwloop_target_mux_sel_o = 1'b1;
+                    hwloop_start_mux_sel_o = 1'b1;
+                    hwloop_cnt_mux_sel_o = 1'b0;
+                end
+                default: illegal_insn_o = 1'b1;
+            endcase
+        end
+        default: illegal_insn_o = 1'b1;
+    endcase
+    if(illegal_c_insn_i) begin
+        illegal_insn_o = 1'b1;
+    end
+    if(data_misaligned_i) begin
+        alu_op_a_mux_sel_o = OP_A_REGA_OR_FWD;
+        alu_op_b_mux_sel_o = OP_B_IMM;
+        imm_b_mux_sel_o = IMMB_PCINCR;
+        regfile_alu_we = 1'b0;
+        prepost_useincr_o = 1'b1;
+        scalar_replication_o = 1'b0;
+    end else if(mult_multicycle_i) begin
+        alu_op_c_mux_sel_o = OP_C_REGC_OR_FWD;
+    end
+end
+endmodule
+

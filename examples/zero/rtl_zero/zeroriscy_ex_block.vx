@@ -1,0 +1,105 @@
+module zeroriscy_ex_block #( parameter RV32M = 1) (
+    output [31:0] alu_adder_result_ex_o
+    ,input [31:0] alu_operand_a_i
+    ,input [31:0] alu_operand_b_i
+    ,input [(ALU_OP_WIDTH - 1):0] alu_operator_i
+    ,output  branch_decision_o
+    ,input  clk
+    ,input  div_en_i
+    ,output reg  ex_ready_o
+    ,output [31:0] jump_target_o
+    ,input  lsu_en_i
+    ,input  lsu_ready_ex_i
+    ,input  mult_en_i
+    ,input [31:0] multdiv_operand_a_i
+    ,input [31:0] multdiv_operand_b_i
+    ,input [1:0] multdiv_operator_i
+    ,input [1:0] multdiv_signed_mode_i
+    ,output [31:0] regfile_wdata_ex_o
+    ,input  rst_n
+);
+localparam MULT_TYPE = 1;
+localparam ALU_OP_WIDTH = 6;
+wire [31:0] multdiv_result;
+wire  alu_is_equal_result;
+wire [32:0] multdiv_alu_operand_a;
+wire [32:0] multdiv_alu_operand_b;
+wire [33:0] alu_adder_result_ext;
+wire [31:0] alu_result;
+wire  multdiv_en_sel;
+wire  multdiv_en;
+wire  multdiv_ready;
+wire  alu_cmp_result;
+assign   regfile_wdata_ex_o = multdiv_en ? multdiv_result : alu_result;
+assign   branch_decision_o = alu_cmp_result;
+assign   jump_target_o = alu_adder_result_ex_o;
+zeroriscy_alu  alu_i (.adder_result_ext_o(alu_adder_result_ext)
+ ,.adder_result_o(alu_adder_result_ex_o)
+ ,.comparison_result_o(alu_cmp_result)
+ ,.is_equal_result_o(alu_is_equal_result)
+ ,.multdiv_en_i(multdiv_en_sel)
+ ,.multdiv_operand_a_i(multdiv_alu_operand_a)
+ ,.multdiv_operand_b_i(multdiv_alu_operand_b)
+ ,.operand_a_i(alu_operand_a_i)
+ ,.operand_b_i(alu_operand_b_i)
+ ,.operator_i(alu_operator_i)
+ ,.result_o(alu_result));
+generate
+    if(RV32M) begin
+assign multdiv_en_sel = (~MULT_TYPE) ? (mult_en_i | div_en_i) : div_en_i;
+assign multdiv_en = (mult_en_i | div_en_i);
+    end else begin
+assign multdiv_en_sel = 1'b0;
+assign multdiv_en = 1'b0;
+    end
+
+endgenerate
+generate
+    if(MULT_TYPE == 0) begin
+        begin :multdiv_slow
+zeroriscy_multdiv_slow  multdiv_i(.clk(clk)
+ ,.rst_n(rst_n)
+ ,.mult_en_i(mult_en_i)
+ ,.div_en_i(div_en_i)
+ ,.operator_i(multdiv_operator_i)
+ ,.signed_mode_i(multdiv_signed_mode_i)
+ ,.op_a_i(multdiv_operand_a_i)
+ ,.op_b_i(multdiv_operand_b_i)
+ ,.alu_adder_ext_i(alu_adder_result_ext)
+ ,.alu_adder_i(alu_adder_result_ex_o)
+ ,.equal_to_zero(alu_is_equal_result)
+ ,.ready_o(multdiv_ready)
+ ,.alu_operand_a_o(multdiv_alu_operand_a)
+ ,.alu_operand_b_o(multdiv_alu_operand_b)
+ ,.multdiv_result_o(multdiv_result));
+        end
+    end else begin
+        begin :multdiv_fast
+zeroriscy_multdiv_fast  multdiv_i(.clk(clk)
+ ,.rst_n(rst_n)
+ ,.mult_en_i(mult_en_i)
+ ,.div_en_i(div_en_i)
+ ,.operator_i(multdiv_operator_i)
+ ,.signed_mode_i(multdiv_signed_mode_i)
+ ,.op_a_i(multdiv_operand_a_i)
+ ,.op_b_i(multdiv_operand_b_i)
+ ,.alu_operand_a_o(multdiv_alu_operand_a)
+ ,.alu_operand_b_o(multdiv_alu_operand_b)
+ ,.alu_adder_ext_i(alu_adder_result_ext)
+ ,.alu_adder_i(alu_adder_result_ex_o)
+ ,.equal_to_zero(alu_is_equal_result)
+ ,.ready_o(multdiv_ready)
+ ,.multdiv_result_o(multdiv_result));
+        end
+    end
+
+endgenerate
+always @(*) begin
+    case (1'b1)
+        multdiv_en: ex_ready_o = multdiv_ready;
+        lsu_en_i: ex_ready_o = lsu_ready_ex_i;
+        default: ex_ready_o = 1'b1;
+    endcase
+end
+endmodule
+

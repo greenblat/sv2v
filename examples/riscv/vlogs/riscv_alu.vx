@@ -1,0 +1,639 @@
+module riscv_alu #( parameter FPU = 0,parameter SHARED_INT_DIV = 0) (
+    input [4:0] bmask_a_i
+    ,input [4:0] bmask_b_i
+    ,input  clk
+    ,output  comparison_result_o
+    ,input  enable_i
+    ,input  ex_ready_i
+    ,input [1:0] imm_vec_ext_i
+    ,input [31:0] operand_a_i
+    ,input [31:0] operand_b_i
+    ,input [31:0] operand_c_i
+    ,input [(ALU_OP_WIDTH - 1):0] operator_i
+    ,output  ready_o
+    ,output reg [31:0] result_o
+    ,input  rst_n
+    ,input [1:0] vector_mode_i
+);
+localparam ALU_SLTU = 7'b0000011;
+localparam VEC_MODE8 = 2'b11;
+localparam ALU_NE = 7'b0001101;
+localparam ALU_MAXU = 7'b0010011;
+localparam ALU_SLL = 7'b0100111;
+localparam ALU_INS = 7'b0101101;
+localparam ALU_XOR = 7'b0101111;
+localparam ALU_FEQ = 7'b1000011;
+localparam ALU_SHUF2 = 7'b0111011;
+localparam ALU_SRA = 7'b0100100;
+localparam ALU_LTS = 7'b0000000;
+localparam ALU_GTU = 7'b0001001;
+localparam ALU_REMU = 7'b0110010;
+localparam ALU_EXTS = 7'b0111110;
+localparam ALU_MIN = 7'b0010000;
+localparam ALU_FSGNJN = 7'b1000001;
+localparam ALU_SRL = 7'b0100101;
+localparam ALU_AND = 7'b0010101;
+localparam ALU_SUBU = 7'b0011011;
+localparam ALU_FMIN = 7'b1000111;
+localparam ALU_REM = 7'b0110011;
+localparam ALU_ROR = 7'b0100110;
+localparam ALU_FLE = 7'b1000101;
+localparam ALU_LES = 7'b0000100;
+localparam ALU_SUBR = 7'b0011101;
+localparam ALU_SLETS = 7'b0000110;
+localparam ALU_MAX = 7'b0010010;
+localparam ALU_OP_WIDTH = 7;
+localparam ALU_ADDUR = 7'b0011110;
+localparam ALU_ADD = 7'b0011000;
+localparam ALU_FLT = 7'b1000100;
+localparam ALU_FF1 = 7'b0110110;
+localparam ALU_PCKLO = 7'b0111000;
+localparam ALU_CLIP = 7'b0010110;
+localparam ALU_GTS = 7'b0001000;
+localparam ALU_BEXT = 7'b0101000;
+localparam ALU_SLETU = 7'b0000111;
+localparam ALU_CLIPU = 7'b0010111;
+localparam ALU_MINU = 7'b0010001;
+localparam ALU_EQ = 7'b0001100;
+localparam ALU_SLTS = 7'b0000010;
+localparam ALU_SHUF = 7'b0111010;
+localparam ALU_BCLR = 7'b0101011;
+localparam ALU_BEXTU = 7'b0101001;
+localparam ALU_OR = 7'b0101110;
+localparam ALU_FMAX = 7'b1000110;
+localparam ALU_FL1 = 7'b0110111;
+localparam ALU_FCLASS = 7'b1001000;
+localparam ALU_FSGNJ = 7'b1000000;
+localparam ALU_FKEEP = 7'b1111111;
+localparam ALU_ABS = 7'b0010100;
+localparam ALU_LTU = 7'b0000001;
+localparam ALU_SUB = 7'b0011001;
+localparam ALU_SUBUR = 7'b0011111;
+localparam ALU_DIVU = 7'b0110000;
+localparam ALU_GEU = 7'b0001011;
+localparam ALU_ADDU = 7'b0011010;
+localparam ALU_CNT = 7'b0110100;
+localparam ALU_PCKHI = 7'b0111001;
+localparam ALU_FSGNJX = 7'b1000010;
+localparam ALU_ADDR = 7'b0011100;
+localparam ALU_DIV = 7'b0110001;
+localparam ALU_LEU = 7'b0000101;
+localparam ALU_BINS = 7'b0101010;
+localparam ALU_EXT = 7'b0111111;
+localparam ALU_BSET = 7'b0101100;
+localparam VEC_MODE16 = 2'b10;
+localparam ALU_GES = 7'b0001010;
+localparam ALU_CLB = 7'b0110101;
+wire  div_valid;
+wire [31:0] result_minmax;
+wire [31:0] shift_amt;
+wire [31:0] fclass_result;
+wire [31:0] shift_amt_int;
+wire [31:0] bset_result;
+wire  minmax_is_fp_special;
+wire  do_min;
+wire [4:0] fl1_result;
+wire  shift_left;
+wire [31:0] adder_result;
+wire [31:0] bmask_first;
+reg [31:0] ff_input;
+wire [31:0] bclr_result;
+reg [31:0] shift_amt_left;
+reg [3:0] is_equal;
+reg [3:0] shuffle_through;
+wire [31:0] pack_result;
+reg [35:0] adder_in_a;
+reg [35:0] adder_in_b;
+wire [31:0] shuffle_r0;
+wire [31:0] shuffle_r1;
+reg [31:0] shift_right_result;
+wire [31:0] bmask_inv;
+wire [31:0] shuffle_r0_in;
+wire [31:0] bextins_and;
+wire  extract_sign;
+wire  ff_no_one;
+wire [31:0] fp_canonical_nan;
+reg [3:0] [1:0] shuffle_byte_sel;
+wire [63:0] shift_op_a_32;
+wire [31:0] shift_left_result;
+wire [31:0] shift_amt_norm;
+wire  shift_arithmetic;
+wire [31:0] clip_result;
+wire [31:0] adder_round_value;
+reg [3:0] f_is_nan;
+wire [31:0] bextins_result;
+wire [31:0] shift_result;
+reg [1:0] shuffle_reg1_sel;
+wire [31:0] operand_a_neg_rev;
+wire [4:0] ff1_result;
+wire  extract_is_signed;
+wire [36:0] adder_result_expanded;
+wire [31:0] result_div;
+wire [3:0] is_greater_vec;
+wire [5:0] div_shift;
+wire  adder_op_b_negate;
+wire [5:0] clb_result;
+reg [31:0] f_sign_inject_result;
+wire [3:0] sel_minmax;
+wire  clip_is_lower_u;
+wire [5:0] cnt_result;
+wire [31:0] operand_a_neg;
+reg [1:0] shuffle_reg0_sel;
+reg [3:0] is_greater;
+reg [5:0] bitop_result;
+wire  f_is_snan;
+wire  shift_use_round;
+wire [31:0] shuffle_result;
+wire [3:0] is_equal_vec;
+wire [31:0] adder_round_result;
+wire  div_ready;
+reg [3:0] cmp_result;
+wire [31:0] minmax_b;
+wire  f_is_qnan;
+wire [31:0] bmask;
+wire [31:0] operand_a_rev;
+reg [3:0] shuffle_reg_sel;
+reg [3:0] cmp_signed;
+wire [3:0] f_is_greater;
+wire [31:0] shift_op_a;
+wire [31:0] operand_b_neg;
+wire [31:0] shuffle_r1_in;
+wire  clip_is_lower_neg;
+wire [31:0] adder_op_a;
+wire [31:0] adder_op_b;
+genvar i;
+genvar j;
+assign   operand_a_neg = ~operand_a_i;
+assign   operand_b_neg = ~operand_b_i;
+assign   adder_op_b_negate = (((operator_i == ALU_SUB) || (operator_i == ALU_SUBR)) || (operator_i == ALU_SUBU)) || (operator_i == ALU_SUBUR);
+assign   adder_op_a = (operator_i == ALU_ABS) ? operand_a_neg : operand_a_i;
+assign   adder_op_b = adder_op_b_negate ? operand_b_neg : operand_b_i;
+assign   adder_result_expanded = $signed(adder_in_a) + $signed(adder_in_b);
+assign   adder_result = {adder_result_expanded[35:28], adder_result_expanded[26:19], adder_result_expanded[17:10], adder_result_expanded[8:1]};
+assign   adder_round_value = ((((operator_i == ALU_ADDR) || (operator_i == ALU_SUBR)) || (operator_i == ALU_ADDUR)) || (operator_i == ALU_SUBUR)) ? {1'b0, bmask[31:1]} :
+     32'd0;
+assign   adder_round_result = adder_result + adder_round_value;
+assign   shift_amt = div_valid ? div_shift : operand_b_i;
+assign   shift_left = (((((((operator_i == ALU_SLL) || (operator_i == ALU_BINS)) || (operator_i == ALU_FL1)) || (operator_i == ALU_CLB)) || (operator_i == ALU_DIV)) || (operator_i == ALU_DIVU)) || (operator_i == ALU_REM)) || (operator_i == ALU_REMU);
+assign   shift_use_round = (((((((operator_i == ALU_ADD) || (operator_i == ALU_SUB)) || (operator_i == ALU_ADDR)) || (operator_i == ALU_SUBR)) || (operator_i == ALU_ADDU)) || (operator_i == ALU_SUBU)) || (operator_i == ALU_ADDUR)) || (operator_i == ALU_SUBUR);
+assign   shift_arithmetic = (((((operator_i == ALU_SRA) || (operator_i == ALU_BEXT)) || (operator_i == ALU_ADD)) || (operator_i == ALU_SUB)) || (operator_i == ALU_ADDR)) || (operator_i == ALU_SUBR);
+assign   shift_op_a = shift_left ? operand_a_rev : shift_use_round ? adder_round_result : operand_a_i;
+assign   shift_amt_int = shift_use_round ? shift_amt_norm : shift_left ? shift_amt_left : shift_amt;
+assign   shift_amt_norm = { 4 { {3'b000, bmask_b_i} }};
+assign   shift_op_a_32 = (operator_i == ALU_ROR) ? {shift_op_a, shift_op_a} :
+     $signed({{ 32 { {(shift_arithmetic & shift_op_a[31])} }}, shift_op_a});
+assign   shift_result = shift_left ? shift_left_result : shift_right_result;
+assign   f_is_greater[3:0] = { 4 { {(is_greater[3] ^ ((operand_a_i[31] & operand_b_i[31]) & (!is_equal[3])))} }};
+assign   comparison_result_o = cmp_result[3];
+assign   minmax_b = (operator_i == ALU_ABS) ? adder_result : operand_b_i;
+assign   do_min = ((((operator_i == ALU_MIN) || (operator_i == ALU_MINU)) || (operator_i == ALU_CLIP)) || (operator_i == ALU_CLIPU)) || (operator_i == ALU_FMIN);
+assign   sel_minmax[3:0] = (((operator_i == ALU_FMIN) || (operator_i == ALU_FMAX)) ? f_is_greater : is_greater ^ { 4 { {do_min} }});
+assign   result_minmax[31:24] = sel_minmax[3] ? operand_a_i[31:24] : minmax_b[31:24];
+assign   result_minmax[23:16] = sel_minmax[2] ? operand_a_i[23:16] : minmax_b[23:16];
+assign   result_minmax[15:8] = sel_minmax[1] ? operand_a_i[15:8] : minmax_b[15:8];
+assign   result_minmax[7:0] = sel_minmax[0] ? operand_a_i[7:0] : minmax_b[7:0];
+assign   clip_is_lower_neg = adder_result_expanded[36];
+assign   clip_is_lower_u = (operator_i == ALU_CLIPU) && operand_a_i[31];
+assign   clip_result = is_greater ? result_minmax : clip_is_lower_u ? 32'd0 : clip_is_lower_neg ? operand_b_neg : result_minmax;
+assign   shuffle_r0_in = shuffle_reg0_sel[1] ? operand_a_i : shuffle_reg0_sel[0] ? { 2 { {operand_a_i[15:0]} }} : { 4 { {operand_a_i[7:0]} }};
+assign   shuffle_r1_in = shuffle_reg1_sel[1] ? {{ 8 { operand_a_i[31:31] }}, { 8 { operand_a_i[23:23] }}, { 8 { operand_a_i[15:15] }}, { 8 { operand_a_i[7:7] }}} :
+     shuffle_reg1_sel[0] ? operand_c_i : operand_b_i;
+assign   shuffle_r0[31:24] = shuffle_byte_sel[3][1] ? shuffle_byte_sel[3][0] ? shuffle_r0_in[31:24] : shuffle_r0_in[23:16] :
+     shuffle_byte_sel[3][0] ? shuffle_r0_in[15:8] : shuffle_r0_in[7:0];
+assign   shuffle_r0[23:16] = shuffle_byte_sel[2][1] ? shuffle_byte_sel[2][0] ? shuffle_r0_in[31:24] : shuffle_r0_in[23:16] :
+     shuffle_byte_sel[2][0] ? shuffle_r0_in[15:8] : shuffle_r0_in[7:0];
+assign   shuffle_r0[15:8] = shuffle_byte_sel[1][1] ? shuffle_byte_sel[1][0] ? shuffle_r0_in[31:24] : shuffle_r0_in[23:16] :
+     shuffle_byte_sel[1][0] ? shuffle_r0_in[15:8] : shuffle_r0_in[7:0];
+assign   shuffle_r0[7:0] = shuffle_byte_sel[0][1] ? shuffle_byte_sel[0][0] ? shuffle_r0_in[31:24] : shuffle_r0_in[23:16] :
+     shuffle_byte_sel[0][0] ? shuffle_r0_in[15:8] : shuffle_r0_in[7:0];
+assign   shuffle_r1[31:24] = shuffle_byte_sel[3][1] ? shuffle_byte_sel[3][0] ? shuffle_r1_in[31:24] : shuffle_r1_in[23:16] :
+     shuffle_byte_sel[3][0] ? shuffle_r1_in[15:8] : shuffle_r1_in[7:0];
+assign   shuffle_r1[23:16] = shuffle_byte_sel[2][1] ? shuffle_byte_sel[2][0] ? shuffle_r1_in[31:24] : shuffle_r1_in[23:16] :
+     shuffle_byte_sel[2][0] ? shuffle_r1_in[15:8] : shuffle_r1_in[7:0];
+assign   shuffle_r1[15:8] = shuffle_byte_sel[1][1] ? shuffle_byte_sel[1][0] ? shuffle_r1_in[31:24] : shuffle_r1_in[23:16] :
+     shuffle_byte_sel[1][0] ? shuffle_r1_in[15:8] : shuffle_r1_in[7:0];
+assign   shuffle_r1[7:0] = shuffle_byte_sel[0][1] ? shuffle_byte_sel[0][0] ? shuffle_r1_in[31:24] : shuffle_r1_in[23:16] :
+     shuffle_byte_sel[0][0] ? shuffle_r1_in[15:8] : shuffle_r1_in[7:0];
+assign   shuffle_result[31:24] = shuffle_reg_sel[3] ? shuffle_r1[31:24] : shuffle_r0[31:24];
+assign   shuffle_result[23:16] = shuffle_reg_sel[2] ? shuffle_r1[23:16] : shuffle_r0[23:16];
+assign   shuffle_result[15:8] = shuffle_reg_sel[1] ? shuffle_r1[15:8] : shuffle_r0[15:8];
+assign   shuffle_result[7:0] = shuffle_reg_sel[0] ? shuffle_r1[7:0] : shuffle_r0[7:0];
+assign   pack_result[31:24] = shuffle_through[3] ? shuffle_result[31:24] : operand_c_i[31:24];
+assign   pack_result[23:16] = shuffle_through[2] ? shuffle_result[23:16] : operand_c_i[23:16];
+assign   pack_result[15:8] = shuffle_through[1] ? shuffle_result[15:8] : operand_c_i[15:8];
+assign   pack_result[7:0] = shuffle_through[0] ? shuffle_result[7:0] : operand_c_i[7:0];
+assign   fl1_result = 5'd31 - ff1_result;
+assign   clb_result = ff1_result - 5'd1;
+assign   bmask_first = {32'hFFFFFFFE} << bmask_a_i;
+assign   bmask = (~bmask_first) << bmask_b_i;
+assign   bmask_inv = ~bmask;
+assign   bextins_and = (operator_i == ALU_BINS) ? operand_c_i : { 32 { {extract_sign} }};
+assign   extract_is_signed = operator_i == ALU_BEXT;
+assign   extract_sign = extract_is_signed & shift_result[bmask_a_i];
+assign   bextins_result = (bmask & shift_result) | (bextins_and & bmask_inv);
+assign   bclr_result = operand_a_i & bmask_inv;
+assign   bset_result = operand_a_i | bmask;
+assign   ready_o = div_ready;
+alu_popcnt  alu_popcnt_i (.in_i(operand_a_i), .result_o(cnt_result));
+alu_ff  alu_ff_i (.first_one_o(ff1_result), .in_i(ff_input), .no_ones_o(ff_no_one));
+generate
+    genvar k ;
+
+    for(k=0;k < 32;k=k + 1)begin
+assign operand_a_rev[k] = operand_a_i[(31 - k)];
+    end
+
+endgenerate
+generate
+    genvar m ;
+
+    for(m=0;m < 32;m=m + 1)begin
+assign operand_a_neg_rev[m] = operand_a_neg[(31 - m)];
+    end
+
+endgenerate
+generate
+    for(j=0;j < 32;j=j + 1)begin
+assign shift_left_result[j] = shift_right_result[(31 - j)];
+    end
+
+endgenerate
+generate
+    for(i=0;i < 4;i=i + 1)begin
+assign is_equal_vec[i] = (operand_a_i[((8 * i) + 7):(8 * i)] == operand_b_i[((8 * i) + 7):(i * 8)]);
+assign is_greater_vec[i] = ($signed({(operand_a_i[((8 * i) + 7)] & cmp_signed[i]), operand_a_i[((8 * i) + 7):(8 * i)]}) > $signed({(operand_b_i[((8 * i) + 7)] & cmp_signed[i]), operand_b_i[((8 * i) + 7):(i * 8)]}));
+    end
+
+endgenerate
+generate
+    if(FPU == 1) begin
+        wire [7:0] fclass_exponent;
+        wire [22:0] fclass_mantiassa;
+wire fclass_ninf;
+wire fclass_pinf;
+wire fclass_normal;
+wire fclass_subnormal;
+wire fclass_nzero;
+wire fclass_pzero;
+wire fclass_is_negative;
+wire fclass_snan_a;
+wire fclass_qnan_a;
+wire fclass_snan_b;
+wire fclass_qnan_b;
+assign fclass_exponent = operand_a_i[30:23];
+assign fclass_mantiassa = operand_a_i[22:0];
+assign fclass_is_negative = operand_a_i[31];
+assign fclass_ninf = (operand_a_i == 32'hFF800000);
+assign fclass_pinf = (operand_a_i == 32'h7F800000);
+assign fclass_normal = ((fclass_exponent != 0) && (fclass_exponent != 255));
+assign fclass_subnormal = ((~fclass_exponent) && (fclass_mantiassa != 0));
+assign fclass_nzero = (operand_a_i == 32'h80000000);
+assign fclass_pzero = (operand_a_i == 32'h00000000);
+assign fclass_snan_a = (operand_a_i[30:0] == 32'h7fa00000);
+assign fclass_qnan_a = (operand_a_i[30:0] == 32'h7fc00000);
+assign fclass_snan_b = (operand_b_i[30:0] == 32'h7fa00000);
+assign fclass_qnan_b = (operand_b_i[30:0] == 32'h7fc00000);
+assign fclass_result[31:0] = {{ 22 { 1'h0 }}, fclass_qnan_a, fclass_snan_a, fclass_pinf, (fclass_normal && (!fclass_is_negative)), (fclass_subnormal && (!fclass_is_negative)), fclass_pzero, fclass_nzero, (fclass_subnormal && fclass_is_negative), (fclass_normal && fclass_is_negative), fclass_ninf};
+assign f_is_qnan = (fclass_qnan_a | fclass_qnan_b);
+assign f_is_snan = (fclass_snan_a | fclass_snan_b);
+assign minmax_is_fp_special = (((operator_i == ALU_FMIN) || (operator_i == ALU_FMAX)) & (f_is_snan | f_is_qnan));
+assign fp_canonical_nan = 32'h7fc00000;
+    end else begin
+assign minmax_is_fp_special = 32'd0;
+assign f_is_qnan = 32'd0;
+assign f_is_snan = 32'd0;
+assign fclass_result = 32'd0;
+assign fp_canonical_nan = 32'd0;
+    end
+
+endgenerate
+generate
+    if(SHARED_INT_DIV == 1) begin
+assign result_div = 32'd0;
+assign div_ready = 32'd1;
+assign div_valid = 32'd0;
+    end else begin
+wire div_signed;
+wire div_op_a_signed;
+wire div_op_b_signed;
+        wire [5:0] div_shift_int;
+assign div_signed = operator_i[0];
+assign div_op_a_signed = (operand_a_i[31] & div_signed);
+assign div_op_b_signed = (operand_b_i[31] & div_signed);
+assign div_shift_int = ff_no_one ? 6'd31 : clb_result;
+assign div_shift = (div_shift_int + div_op_a_signed ? 6'd0 : 6'd1);
+assign div_valid = (enable_i & ((((operator_i == ALU_DIV) || (operator_i == ALU_DIVU)) || (operator_i == ALU_REM)) || (operator_i == ALU_REMU)));
+riscv_alu_div  div_i(.Clk_CI(clk)
+ ,.Rst_RBI(rst_n)
+ ,.OpA_DI(operand_b_i)
+ ,.OpB_DI(shift_left_result)
+ ,.OpBShift_DI(div_shift)
+ ,.OpBIsZero_SI((cnt_result == 0))
+ ,.OpBSign_SI(div_op_a_signed)
+ ,.OpCode_SI(operator_i[1:0])
+ ,.Res_DO(result_div)
+ ,.InVld_SI(div_valid)
+ ,.OutRdy_SI(ex_ready_i)
+ ,.OutVld_SO(div_ready));
+    end
+
+endgenerate
+always @(*) begin
+    adder_in_a[0] = 1'b1;
+    adder_in_a[8:1] = adder_op_a[7:0];
+    adder_in_a[9] = 1'b1;
+    adder_in_a[17:10] = adder_op_a[15:8];
+    adder_in_a[18] = 1'b1;
+    adder_in_a[26:19] = adder_op_a[23:16];
+    adder_in_a[27] = 1'b1;
+    adder_in_a[35:28] = adder_op_a[31:24];
+    adder_in_b[0] = 1'b0;
+    adder_in_b[8:1] = adder_op_b[7:0];
+    adder_in_b[9] = 1'b0;
+    adder_in_b[17:10] = adder_op_b[15:8];
+    adder_in_b[18] = 1'b0;
+    adder_in_b[26:19] = adder_op_b[23:16];
+    adder_in_b[27] = 1'b0;
+    adder_in_b[35:28] = adder_op_b[31:24];
+    if(adder_op_b_negate || ((operator_i == ALU_ABS) || (operator_i == ALU_CLIP))) begin
+        adder_in_b[0] = 1'b1;
+        case (vector_mode_i)
+            VEC_MODE16: adder_in_b[18] = 1'b1;
+            VEC_MODE8: begin
+                adder_in_b[9] = 1'b1;
+                adder_in_b[18] = 1'b1;
+                adder_in_b[27] = 1'b1;
+            end
+        endcase
+    end else begin
+        case (vector_mode_i)
+            VEC_MODE16: adder_in_a[18] = 1'b0;
+            VEC_MODE8: begin
+                adder_in_a[9] = 1'b0;
+                adder_in_a[18] = 1'b0;
+                adder_in_a[27] = 1'b0;
+            end
+        endcase
+    end
+end
+always @(*) begin
+    case (vector_mode_i)
+        VEC_MODE16: begin
+            shift_amt_left[15:0] = shift_amt[31:16];
+            shift_amt_left[31:16] = shift_amt[15:0];
+        end
+        VEC_MODE8: begin
+            shift_amt_left[7:0] = shift_amt[31:24];
+            shift_amt_left[15:8] = shift_amt[23:16];
+            shift_amt_left[23:16] = shift_amt[15:8];
+            shift_amt_left[31:24] = shift_amt[7:0];
+        end
+        default: shift_amt_left[31:0] = shift_amt[31:0];
+    endcase
+end
+always @(*) begin
+    case (vector_mode_i)
+        VEC_MODE16: begin
+            shift_right_result[31:16] = $signed({(shift_arithmetic & shift_op_a[31]), shift_op_a[31:16]}) >>> shift_amt_int[19:16];
+            shift_right_result[15:0] = $signed({(shift_arithmetic & shift_op_a[15]), shift_op_a[15:0]}) >>> shift_amt_int[3:0];
+        end
+        VEC_MODE8: begin
+            shift_right_result[31:24] = $signed({(shift_arithmetic & shift_op_a[31]), shift_op_a[31:24]}) >>> shift_amt_int[26:24];
+            shift_right_result[23:16] = $signed({(shift_arithmetic & shift_op_a[23]), shift_op_a[23:16]}) >>> shift_amt_int[18:16];
+            shift_right_result[15:8] = $signed({(shift_arithmetic & shift_op_a[15]), shift_op_a[15:8]}) >>> shift_amt_int[10:8];
+            shift_right_result[7:0] = $signed({(shift_arithmetic & shift_op_a[7]), shift_op_a[7:0]}) >>> shift_amt_int[2:0];
+        end
+        default: shift_right_result = shift_op_a_32 >> shift_amt_int[4:0];
+    endcase
+end
+always @(*) begin
+    cmp_signed = 4'b0;
+    case (operator_i)
+        ALU_GTS,ALU_GES,ALU_LTS,ALU_LES,ALU_SLTS,ALU_SLETS,ALU_MIN,ALU_MAX,ALU_ABS,ALU_CLIP,ALU_CLIPU,ALU_FLE,ALU_FLT,ALU_FMAX,ALU_FMIN: case (vector_mode_i)
+            VEC_MODE8: cmp_signed[3:0] = 4'b1111;
+            VEC_MODE16: cmp_signed[3:0] = 4'b1010;
+            default: cmp_signed[3:0] = 4'b1000;
+        endcase
+        default: ;    endcase
+end
+always @(*) begin
+    is_equal[3:0] = { 4 { {(((is_equal_vec[3] & is_equal_vec[2]) & is_equal_vec[1]) & is_equal_vec[0])} }};
+    is_greater[3:0] = { 4 { {(is_greater_vec[3] | (is_equal_vec[3] & (is_greater_vec[2] | (is_equal_vec[2] & (is_greater_vec[1] | (is_equal_vec[1] & is_greater_vec[0]))))))} }};
+    case (vector_mode_i)
+        VEC_MODE16: begin
+            is_equal[1:0] = { 2 { {(is_equal_vec[0] & is_equal_vec[1])} }};
+            is_equal[3:2] = { 2 { {(is_equal_vec[2] & is_equal_vec[3])} }};
+            is_greater[1:0] = { 2 { {(is_greater_vec[1] | (is_equal_vec[1] & is_greater_vec[0]))} }};
+            is_greater[3:2] = { 2 { {(is_greater_vec[3] | (is_equal_vec[3] & is_greater_vec[2]))} }};
+        end
+        VEC_MODE8: begin
+            is_equal[3:0] = is_equal_vec[3:0];
+            is_greater[3:0] = is_greater_vec[3:0];
+        end
+        default: ;    endcase
+end
+always @(*) begin
+    cmp_result = is_equal;
+    f_is_nan = { 4 { {(f_is_qnan | f_is_snan)} }};
+    case (operator_i)
+        ALU_EQ: cmp_result = is_equal;
+        ALU_NE: cmp_result = ~is_equal;
+        ALU_GTS,ALU_GTU: cmp_result = is_greater;
+        ALU_GES,ALU_GEU: cmp_result = is_greater | is_equal;
+        ALU_LTS,ALU_SLTS,ALU_LTU,ALU_SLTU: cmp_result = ~(is_greater | is_equal);
+        ALU_SLETS,ALU_SLETU,ALU_LES,ALU_LEU: cmp_result = ~is_greater;
+        ALU_FEQ: cmp_result = is_equal & (~f_is_nan);
+        ALU_FLE: cmp_result = (~f_is_greater) & (~f_is_nan);
+        ALU_FLT: cmp_result = (~(f_is_greater | is_equal)) & (~f_is_nan);
+        default: ;    endcase
+end
+always @(*) begin
+    if(FPU) begin
+        f_sign_inject_result[30:0] = operand_a_i[30:0];
+        f_sign_inject_result[31] = operand_a_i[31];
+        case (operator_i)
+            ALU_FKEEP: f_sign_inject_result[31] = operand_a_i[31];
+            ALU_FSGNJ: f_sign_inject_result[31] = operand_b_i[31];
+            ALU_FSGNJN: f_sign_inject_result[31] = !operand_b_i[31];
+            ALU_FSGNJX: f_sign_inject_result[31] = operand_a_i[31] ^ operand_b_i[31];
+            default: ;        endcase
+    end else begin
+        f_sign_inject_result = 32'd0;
+    end
+end
+always @(*) begin
+    shuffle_reg_sel = 32'd0;
+    shuffle_reg1_sel = 2'b01;
+    shuffle_reg0_sel = 2'b10;
+    shuffle_through = 32'd1;
+    case (operator_i)
+        ALU_EXT,ALU_EXTS: begin
+            if(operator_i == ALU_EXTS) begin
+                shuffle_reg1_sel = 2'b11;
+            end
+            if(vector_mode_i == VEC_MODE8) begin
+                shuffle_reg_sel[3:1] = 3'b111;
+                shuffle_reg_sel[0] = 1'b0;
+            end else begin
+                shuffle_reg_sel[3:2] = 2'b11;
+                shuffle_reg_sel[1:0] = 2'b00;
+            end
+        end
+        ALU_PCKLO: begin
+            shuffle_reg1_sel = 2'b00;
+            if(vector_mode_i == VEC_MODE8) begin
+                shuffle_through = 4'b0011;
+                shuffle_reg_sel = 4'b0001;
+            end else begin
+                shuffle_reg_sel = 4'b0011;
+            end
+        end
+        ALU_PCKHI: begin
+            shuffle_reg1_sel = 2'b00;
+            shuffle_reg_sel = 4'b0100;
+            shuffle_through = 4'b1100;
+        end
+        ALU_SHUF2: case (vector_mode_i)
+            VEC_MODE8: begin
+                shuffle_reg_sel[3] = ~operand_b_i[26];
+                shuffle_reg_sel[2] = ~operand_b_i[18];
+                shuffle_reg_sel[1] = ~operand_b_i[10];
+                shuffle_reg_sel[0] = ~operand_b_i[2];
+            end
+            VEC_MODE16: begin
+                shuffle_reg_sel[3] = ~operand_b_i[17];
+                shuffle_reg_sel[2] = ~operand_b_i[17];
+                shuffle_reg_sel[1] = ~operand_b_i[1];
+                shuffle_reg_sel[0] = ~operand_b_i[1];
+            end
+            default: ;        endcase
+        ALU_INS: case (vector_mode_i)
+            VEC_MODE8: begin
+                shuffle_reg0_sel = 2'b00;
+                case (imm_vec_ext_i)
+                    2'b00: shuffle_reg_sel[3:0] = 4'b1110;
+                    2'b01: shuffle_reg_sel[3:0] = 4'b1101;
+                    2'b10: shuffle_reg_sel[3:0] = 4'b1011;
+                    2'b11: shuffle_reg_sel[3:0] = 4'b0111;
+                    default: ;                endcase
+            end
+            VEC_MODE16: begin
+                shuffle_reg0_sel = 2'b01;
+                shuffle_reg_sel[3] = ~imm_vec_ext_i[0];
+                shuffle_reg_sel[2] = ~imm_vec_ext_i[0];
+                shuffle_reg_sel[1] = imm_vec_ext_i[0];
+                shuffle_reg_sel[0] = imm_vec_ext_i[0];
+            end
+            default: ;        endcase
+        default: ;    endcase
+end
+always @(*) begin
+    shuffle_byte_sel = 32'd0;
+    case (operator_i)
+        ALU_EXTS,ALU_EXT: case (vector_mode_i)
+            VEC_MODE8: begin
+                shuffle_byte_sel[3] = imm_vec_ext_i[1:0];
+                shuffle_byte_sel[2] = imm_vec_ext_i[1:0];
+                shuffle_byte_sel[1] = imm_vec_ext_i[1:0];
+                shuffle_byte_sel[0] = imm_vec_ext_i[1:0];
+            end
+            VEC_MODE16: begin
+                shuffle_byte_sel[3] = {imm_vec_ext_i[0], 1'b1};
+                shuffle_byte_sel[2] = {imm_vec_ext_i[0], 1'b1};
+                shuffle_byte_sel[1] = {imm_vec_ext_i[0], 1'b1};
+                shuffle_byte_sel[0] = {imm_vec_ext_i[0], 1'b0};
+            end
+            default: ;        endcase
+        ALU_PCKLO,ALU_PCKHI: case (vector_mode_i)
+            VEC_MODE8: begin
+                shuffle_byte_sel[3] = 2'b00;
+                shuffle_byte_sel[2] = 2'b00;
+                shuffle_byte_sel[1] = 2'b00;
+                shuffle_byte_sel[0] = 2'b00;
+            end
+            VEC_MODE16: begin
+                shuffle_byte_sel[3] = 2'b01;
+                shuffle_byte_sel[2] = 2'b00;
+                shuffle_byte_sel[1] = 2'b01;
+                shuffle_byte_sel[0] = 2'b00;
+            end
+            default: ;        endcase
+        ALU_SHUF2,ALU_SHUF: case (vector_mode_i)
+            VEC_MODE8: begin
+                shuffle_byte_sel[3] = operand_b_i[25:24];
+                shuffle_byte_sel[2] = operand_b_i[17:16];
+                shuffle_byte_sel[1] = operand_b_i[9:8];
+                shuffle_byte_sel[0] = operand_b_i[1:0];
+            end
+            VEC_MODE16: begin
+                shuffle_byte_sel[3] = {operand_b_i[16], 1'b1};
+                shuffle_byte_sel[2] = {operand_b_i[16], 1'b0};
+                shuffle_byte_sel[1] = {operand_b_i[0], 1'b1};
+                shuffle_byte_sel[0] = {operand_b_i[0], 1'b0};
+            end
+            default: ;        endcase
+        ALU_INS: begin
+            shuffle_byte_sel[3] = 2'b11;
+            shuffle_byte_sel[2] = 2'b10;
+            shuffle_byte_sel[1] = 2'b01;
+            shuffle_byte_sel[0] = 2'b00;
+        end
+        default: ;    endcase
+end
+always @(*) begin
+    ff_input = 32'd0;
+    case (operator_i)
+        ALU_FF1: ff_input = operand_a_i;
+        ALU_DIVU,ALU_REMU,ALU_FL1: ff_input = operand_a_rev;
+        ALU_DIV,ALU_REM,ALU_CLB: if(operand_a_i[31]) begin
+            ff_input = operand_a_neg_rev;
+        end else begin
+            ff_input = operand_a_rev;
+        end
+    endcase
+end
+always @(*) begin
+    bitop_result = 32'd0;
+    case (operator_i)
+        ALU_FF1: bitop_result = ff_no_one ? 6'd32 : {1'b0, ff1_result};
+        ALU_FL1: bitop_result = ff_no_one ? 6'd32 : {1'b0, fl1_result};
+        ALU_CNT: bitop_result = cnt_result;
+        ALU_CLB: if(ff_no_one) begin
+            if(operand_a_i[31]) begin
+                bitop_result = 6'd31;
+            end else begin
+                bitop_result = 32'd0;
+            end
+        end else begin
+            bitop_result = clb_result;
+        end
+        default: ;    endcase
+end
+always @(*) begin
+    result_o = 32'd0;
+    case (operator_i)
+        ALU_AND: result_o = operand_a_i & operand_b_i;
+        ALU_OR: result_o = operand_a_i | operand_b_i;
+        ALU_XOR: result_o = operand_a_i ^ operand_b_i;
+        ALU_ADD,ALU_ADDR,ALU_ADDU,ALU_ADDUR,ALU_SUB,ALU_SUBR,ALU_SUBU,ALU_SUBUR,ALU_SLL,ALU_SRL,ALU_SRA,ALU_ROR: result_o = shift_result;
+        ALU_BINS,ALU_BEXT,ALU_BEXTU: result_o = bextins_result;
+        ALU_BCLR: result_o = bclr_result;
+        ALU_BSET: result_o = bset_result;
+        ALU_SHUF,ALU_SHUF2,ALU_PCKLO,ALU_PCKHI,ALU_EXT,ALU_EXTS,ALU_INS: result_o = pack_result;
+        ALU_MIN,ALU_MINU,ALU_MAX,ALU_MAXU,ALU_ABS,ALU_FMIN,ALU_FMAX: result_o = minmax_is_fp_special ? fp_canonical_nan : result_minmax;
+        ALU_CLIP,ALU_CLIPU: result_o = clip_result;
+        ALU_EQ,ALU_NE,ALU_GTU,ALU_GEU,ALU_LTU,ALU_LEU,ALU_GTS,ALU_GES,ALU_LTS,ALU_LES: begin
+            result_o[31:24] = { 8 { cmp_result[3:3] }};
+            result_o[23:16] = { 8 { cmp_result[2:2] }};
+            result_o[15:8] = { 8 { cmp_result[1:1] }};
+            result_o[7:0] = { 8 { cmp_result[0:0] }};
+        end
+        ALU_FEQ,ALU_FLT,ALU_FLE,ALU_SLTS,ALU_SLTU,ALU_SLETS,ALU_SLETU: result_o = {31'b0, comparison_result_o};
+        ALU_FF1,ALU_FL1,ALU_CLB,ALU_CNT: result_o = {26'h0, bitop_result[5:0]};
+        ALU_DIV,ALU_DIVU,ALU_REM,ALU_REMU: result_o = result_div;
+        ALU_FCLASS: result_o = fclass_result;
+        ALU_FSGNJ,ALU_FSGNJN,ALU_FSGNJX,ALU_FKEEP: result_o = f_sign_inject_result;
+        default: ;    endcase
+end
+endmodule
+

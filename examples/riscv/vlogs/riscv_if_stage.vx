@@ -1,0 +1,243 @@
+module riscv_if_stage #( parameter N_HWLP = 2,parameter FPU = 0,parameter RDATA_WIDTH = 32) (
+    input [23:0] boot_addr_i
+    ,input  clear_instr_valid_i
+    ,input  clk
+    ,input [31:0] dbg_jump_addr_i
+    ,input  dbg_jump_req_i
+    ,input [1:0] exc_pc_mux_i
+    ,input [4:0] exc_vec_pc_mux_i
+    ,input [31:0] exception_pc_reg_i
+    ,input  halt_if_i
+    ,input [(N_HWLP - 1):0] [31:0] hwlp_cnt_i
+    ,output reg [(N_HWLP - 1):0] hwlp_dec_cnt_id_o
+    ,input [(N_HWLP - 1):0] [31:0] hwlp_end_i
+    ,input [(N_HWLP - 1):0] [31:0] hwlp_start_i
+    ,input  id_ready_i
+    ,output  if_busy_o
+    ,output reg  illegal_c_insn_id_o
+    ,output [31:0] instr_addr_o
+    ,input  instr_gnt_i
+    ,input [(RDATA_WIDTH - 1):0] instr_rdata_i
+    ,output reg [31:0] instr_rdata_id_o
+    ,output  instr_req_o
+    ,input  instr_rvalid_i
+    ,output reg  instr_valid_id_o
+    ,output reg  is_compressed_id_o
+    ,output  is_hwlp_id_o
+    ,input [31:0] jump_target_ex_i
+    ,input [31:0] jump_target_id_i
+    ,input [23:0] m_trap_base_addr_i
+    ,output reg [31:0] pc_id_o
+    ,output [31:0] pc_if_o
+    ,input [2:0] pc_mux_i
+    ,input  pc_set_i
+    ,output  perf_imiss_o
+    ,input  req_i
+    ,input  rst_n
+    ,input  trap_addr_mux_i
+    ,input [23:0] u_trap_base_addr_i
+);
+localparam EXC_OFF_RST = 8'h80;
+localparam EXC_PC_ILLINSN = 2'b00;
+localparam PC_BOOT = 3'b000;
+localparam PC_DBG_NPC = 3'b111;
+localparam PC_BRANCH = 3'b011;
+localparam EXC_PC_ECALL = 2'b01;
+localparam TRAP_MACHINE = 1'b0;
+localparam PC_ERET = 3'b101;
+localparam IDLE = 1;
+localparam EXC_PC_IRQ = 2'b11;
+localparam TRAP_USER = 1'b1;
+localparam EXC_OFF_ILLINSN = 8'h84;
+localparam PC_JUMP = 3'b010;
+localparam EXC_OFF_ECALL = 8'h88;
+localparam PC_EXCEPTION = 3'b100;
+localparam WAIT = 0;
+reg [0:0] offset_fsm_ns;
+reg [(N_HWLP - 1):0] hwlp_dec_cnt_if;
+wire  fetch_valid;
+wire  instr_compressed_int;
+wire  prefetch_busy;
+reg  valid;
+reg [0:0] offset_fsm_cs;
+wire [31:0] hwlp_target;
+wire [31:0] fetch_rdata;
+wire [31:0] instr_decompressed;
+reg [31:0] exc_pc;
+reg  is_hwlp_id_q;
+wire  fetch_is_hwlp;
+wire [(N_HWLP - 1):0] hwlp_dec_cnt;
+wire  hwlp_jump;
+reg [31:0] fetch_addr_n;
+wire  if_valid;
+wire [31:0] fetch_addr;
+wire  if_ready;
+reg  branch_req;
+wire  hwlp_branch;
+reg  fetch_ready;
+wire  illegal_c_insn;
+reg [23:0] trap_base_addr;
+assign   pc_if_o = fetch_addr;
+assign   if_busy_o = prefetch_busy;
+assign   perf_imiss_o = (~fetch_valid) | branch_req;
+assign   is_hwlp_id_o = is_hwlp_id_q & instr_valid_id_o;
+assign   if_ready = valid & id_ready_i;
+assign   if_valid = (~halt_if_i) & if_ready;
+riscv_hwloop_controller #(.N_REGS(N_HWLP)) hwloop_controller_i (.current_pc_i(fetch_addr)
+ ,.hwlp_counter_i(hwlp_cnt_i)
+ ,.hwlp_dec_cnt_id_i((hwlp_dec_cnt_id_o & { N_HWLP { {is_hwlp_id_o} }}))
+ ,.hwlp_dec_cnt_o(hwlp_dec_cnt)
+ ,.hwlp_end_addr_i(hwlp_end_i)
+ ,.hwlp_jump_o(hwlp_jump)
+ ,.hwlp_start_addr_i(hwlp_start_i)
+ ,.hwlp_targ_addr_o(hwlp_target));
+riscv_compressed_decoder #(.FPU(FPU)) compressed_decoder_i (.illegal_instr_o(illegal_c_insn)
+ ,.instr_i(fetch_rdata)
+ ,.instr_o(instr_decompressed)
+ ,.is_compressed_o(instr_compressed_int));
+generate
+    if(RDATA_WIDTH == 32) begin
+        begin :prefetch_32
+riscv_prefetch_buffer  prefetch_buffer_i(.clk(clk)
+ ,.rst_n(rst_n)
+ ,.req_i(req_i)
+ ,.branch_i(branch_req)
+ ,.addr_i({fetch_addr_n[31:1], 1'b0})
+ ,.hwloop_i(hwlp_jump)
+ ,.hwloop_target_i(hwlp_target)
+ ,.hwlp_branch_o(hwlp_branch)
+ ,.ready_i(fetch_ready)
+ ,.valid_o(fetch_valid)
+ ,.rdata_o(fetch_rdata)
+ ,.addr_o(fetch_addr)
+ ,.is_hwlp_o(fetch_is_hwlp)
+ ,.instr_req_o(instr_req_o)
+ ,.instr_addr_o(instr_addr_o)
+ ,.instr_gnt_i(instr_gnt_i)
+ ,.instr_rvalid_i(instr_rvalid_i)
+ ,.instr_rdata_i(instr_rdata_i)
+ ,.busy_o(prefetch_busy));
+        end
+    end else if(RDATA_WIDTH == 128) begin
+        begin :prefetch_128
+riscv_prefetch_L0_buffer  prefetch_buffer_i(.clk(clk)
+ ,.rst_n(rst_n)
+ ,.req_i(1'b1)
+ ,.branch_i(branch_req)
+ ,.addr_i({fetch_addr_n[31:1], 1'b0})
+ ,.hwloop_i(hwlp_jump)
+ ,.hwloop_target_i(hwlp_target)
+ ,.ready_i(fetch_ready)
+ ,.valid_o(fetch_valid)
+ ,.rdata_o(fetch_rdata)
+ ,.addr_o(fetch_addr)
+ ,.is_hwlp_o(fetch_is_hwlp)
+ ,.instr_req_o(instr_req_o)
+ ,.instr_addr_o(instr_addr_o)
+ ,.instr_gnt_i(instr_gnt_i)
+ ,.instr_rvalid_i(instr_rvalid_i)
+ ,.instr_rdata_i(instr_rdata_i)
+ ,.busy_o(prefetch_busy));
+        end
+    end
+
+endgenerate
+always @(*) begin
+    begin :EXC_PC_MUX
+        exc_pc = 32'd0;
+        case (trap_addr_mux_i)
+            TRAP_MACHINE: trap_base_addr = m_trap_base_addr_i;
+            TRAP_USER: trap_base_addr = u_trap_base_addr_i;
+            default: ;        endcase
+        case (exc_pc_mux_i)
+            EXC_PC_ILLINSN: exc_pc = {trap_base_addr, EXC_OFF_ILLINSN};
+            EXC_PC_ECALL: exc_pc = {trap_base_addr, EXC_OFF_ECALL};
+            EXC_PC_IRQ: exc_pc = {trap_base_addr, 1'b0, exc_vec_pc_mux_i[4:0], 2'b0};
+            default: ;        endcase
+    end
+end
+always @(*) begin
+    fetch_addr_n = 32'd0;
+    case (pc_mux_i)
+        PC_BOOT: fetch_addr_n = {boot_addr_i, EXC_OFF_RST};
+        PC_JUMP: fetch_addr_n = jump_target_id_i;
+        PC_BRANCH: fetch_addr_n = jump_target_ex_i;
+        PC_EXCEPTION: fetch_addr_n = exc_pc;
+        PC_ERET: fetch_addr_n = exception_pc_reg_i;
+        PC_DBG_NPC: fetch_addr_n = dbg_jump_addr_i;
+        default: ;    endcase
+end
+always @(posedge clk or negedge rst_n) begin
+    if(~rst_n) begin
+        offset_fsm_cs <= IDLE;
+    end else begin
+        offset_fsm_cs <= offset_fsm_ns;
+    end
+end
+always @(*) begin
+    offset_fsm_ns = offset_fsm_cs;
+    fetch_ready = 1'b0;
+    branch_req = 1'b0;
+    valid = 1'b0;
+    case (offset_fsm_cs)
+        IDLE: if(req_i) begin
+            branch_req = 1'b1;
+            offset_fsm_ns = WAIT;
+        end
+        WAIT: if(fetch_valid) begin
+            valid = 1'b1;
+            if(req_i && if_valid) begin
+                fetch_ready = 1'b1;
+                offset_fsm_ns = WAIT;
+            end
+        end
+        default: offset_fsm_ns = IDLE;
+    endcase
+    if(pc_set_i) begin
+        valid = 1'b0;
+        branch_req = 1'b1;
+        offset_fsm_ns = WAIT;
+    end else begin
+        if(hwlp_branch) begin
+            valid = 1'b0;
+        end
+    end
+end
+always @(posedge clk or negedge rst_n) begin
+    if(~rst_n) begin
+        hwlp_dec_cnt_if <= 32'd0;
+    end else begin
+        if(hwlp_jump) begin
+            hwlp_dec_cnt_if <= hwlp_dec_cnt;
+        end
+    end
+end
+always @(posedge clk or negedge rst_n) begin
+    begin :IF_ID_PIPE_REGISTERS
+        if(~rst_n) begin
+            instr_valid_id_o <= 1'b0;
+            instr_rdata_id_o <= 32'd0;
+            illegal_c_insn_id_o <= 1'b0;
+            is_compressed_id_o <= 1'b0;
+            pc_id_o <= 32'd0;
+            is_hwlp_id_q <= 1'b0;
+            hwlp_dec_cnt_id_o <= 32'd0;
+        end else begin
+            if(if_valid) begin
+                instr_valid_id_o <= 1'b1;
+                instr_rdata_id_o <= instr_decompressed;
+                illegal_c_insn_id_o <= illegal_c_insn;
+                is_compressed_id_o <= instr_compressed_int;
+                pc_id_o <= pc_if_o;
+                is_hwlp_id_q <= fetch_is_hwlp;
+                if(fetch_is_hwlp) begin
+                    hwlp_dec_cnt_id_o <= hwlp_dec_cnt_if;
+                end
+            end else if(clear_instr_valid_i) begin
+                instr_valid_id_o <= 1'b0;
+            end
+        end
+    end
+end
+endmodule
+

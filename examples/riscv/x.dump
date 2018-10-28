@@ -1,0 +1,4 @@
+module x
+    parameter AA 2
+    generate [['if', ['>', 'AA', 2], ['list', [('declare', 'wire', 'xxx', ('packed', (3, 0), (5, 0)))]]]]
+endmodule

@@ -1,0 +1,66 @@
+module riscv_hwloop_regs #( parameter N_REG_BITS = $clog2(N_REGS),parameter N_REGS = 2) (
+    input  clk
+    ,input [31:0] hwlp_cnt_data_i
+    ,output [(N_REGS - 1):0] [31:0] hwlp_counter_o
+    ,input [(N_REGS - 1):0] hwlp_dec_cnt_i
+    ,output [(N_REGS - 1):0] [31:0] hwlp_end_addr_o
+    ,input [31:0] hwlp_end_data_i
+    ,input [(N_REG_BITS - 1):0] hwlp_regid_i
+    ,output [(N_REGS - 1):0] [31:0] hwlp_start_addr_o
+    ,input [31:0] hwlp_start_data_i
+    ,input [2:0] hwlp_we_i
+    ,input  rst_n
+    ,input  valid_i
+);
+reg [(N_REGS - 1):0] [31:0] hwlp_start_q;
+reg [31:0] i;
+wire [(N_REGS - 1):0] [31:0] hwlp_counter_n;
+reg [(N_REGS - 1):0] [31:0] hwlp_counter_q;
+reg [(N_REGS - 1):0] [31:0] hwlp_end_q;
+genvar k;
+assign   hwlp_start_addr_o = hwlp_start_q;
+assign   hwlp_end_addr_o = hwlp_end_q;
+assign   hwlp_counter_o = hwlp_counter_q;
+generate
+    for(k=0;k < N_REGS;k=k + 1)begin
+assign hwlp_counter_n[k] = (hwlp_counter_q[k] - 1);
+    end
+
+endgenerate
+always @(posedge clk or negedge rst_n) begin
+    begin :HWLOOP_REGS_START
+        if(~rst_n) begin
+            hwlp_start_q <= 32'b0;
+        end else if(hwlp_we_i[0]) begin
+            hwlp_start_q[hwlp_regid_i] <= hwlp_start_data_i;
+        end
+    end
+end
+always @(posedge clk or negedge rst_n) begin
+    begin :HWLOOP_REGS_END
+        if(~rst_n) begin
+            hwlp_end_q <= 32'b0;
+        end else if(hwlp_we_i[1]) begin
+            hwlp_end_q[hwlp_regid_i] <= hwlp_end_data_i;
+        end
+    end
+end
+always @(posedge clk or negedge rst_n) begin
+    begin :HWLOOP_REGS_COUNTER
+        if(~rst_n) begin
+            hwlp_counter_q <= 32'b0;
+        end else begin
+            for(i=0;i < N_REGS;i=i + 1)begin
+                if(hwlp_we_i[2] && (i == hwlp_regid_i)) begin
+                    hwlp_counter_q[i] <= hwlp_cnt_data_i;
+                end else begin
+                    if(hwlp_dec_cnt_i[i] && valid_i) begin
+                        hwlp_counter_q[i] <= hwlp_counter_n[i];
+                    end
+                end
+            end
+        end
+    end
+end
+endmodule
+
