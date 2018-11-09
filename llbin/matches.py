@@ -23,7 +23,7 @@ def matches(List,Seq,Verbose=False):
 
         if Iseq == '?': 
             Vars.append(List[ind])
-        elif Iseq[0] == '!': 
+        elif (Iseq[0] == '!')and(Iseq!='!'): 
             if (Iseq[1:]!=List[ind][0])and(Iseq[1:]!=List[ind][1]): 
                 if Verbose: logs.log_info('matches stopped(0) at iseq=%s who=%s '%(Iseq,List[ind]))
                 return False
@@ -35,6 +35,11 @@ def matches(List,Seq,Verbose=False):
             else:
                 if Verbose: logs.log_info('matches stopped(1) at iseq=%s who=%s '%(Iseq,Who))
                 return False
+        elif (Iseq[0] == '#')and(Iseq!='#'):  # check kind
+            Kind = Iseq[1:]
+            Act = List[ind][1]
+            if (Kind!=Act): return False
+            Vars.append(List[ind])
 
         elif (Iseq!=Litem):
             if Verbose: logs.log_info('matches stopped(2) at iseq=|%s| who=|%s| %s '%(Iseq,Litem,List[ind]))

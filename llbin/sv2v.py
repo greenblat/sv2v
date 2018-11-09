@@ -12,6 +12,7 @@ def main():
 from vyaccer2 import run_yacc
 import db0 
 import pacifySV
+pacifySV.packages_save = db0.packages_save
 
 class EnvironmentClass:
     def __init__(self):

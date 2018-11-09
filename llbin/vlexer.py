@@ -108,6 +108,11 @@ def work_out_queue(Queue,Flush=False):
         Queue.pop(1)
     if (len(Queue)>=2)and(Queue[0][0]=='integer')and(Queue[1][0] in ['unsigned']):
         Queue.pop(1)
+    if (len(Queue)>=3)and(Queue[1][0]=='::'):
+        Tok = '%s::%s'%(Queue[0][0],Queue[2][0])
+        Queue.pop(1)
+        Queue.pop(1)
+        Queue[0]= (Tok,'token',Queue[0][2],Queue[0][3])
 
     if (len(Queue)>0)and(Queue[0][0]=='packed'):
         Queue.pop(0)
@@ -144,6 +149,7 @@ DoubleNames['->'] = 'emit'
 DoubleNames['!^'] = 'xnor'
 DoubleNames['>>'] = 'shift_right'
 DoubleNames['<<'] = 'shift_left'
+DoubleNames['::'] = 'doubledots'
 
 
 def doublesName(Txt):
@@ -252,15 +258,25 @@ Table = [
     ,('ubin2',BinDig,'',              'idle','push','ubin')
 
 
+    ,('idle',':',':',             'dotdot','add',0)
+    ,('dotdot',':','',             'idle','push','double')
     ,('idle','*','*',             'starstar','add',0)
     ,('starstar','*','',          'idle','push','starstar')
 
     ,('idle','+','+',             'plusplus','add',0)
     ,('plusplus','+','',             'idle','push','plusplus')
+
+    ,('idle','-','-',             'minusminus','add',0)
+    ,('minusminus','-','',             'idle','push','minusminus')
     ,('idle','>','>',             'shft2','add',0)
     ,('shft2','>','>',             'shft3','add',0)
     ,('shft3','>','',             'idle','push','shift3')
     ,('shft2','>','',             'idle','push','double')
+
+    ,('idle','<','<',             'shftl2','add',0)
+    ,('shftl2','<','<',             'shftl3','add',0)
+    ,('shftl3','<','',             'idle','push','shiftl3')
+    ,('shftl2','<','',             'idle','push','double')
 
     ,('idle',Singles,'',             'idle','push','single')
 
@@ -296,6 +312,8 @@ ReservedWordsStr = '''
     unique
     always begin end
     const
+    automatic
+    inside
 
 assign deassign
 force release
@@ -359,6 +377,8 @@ semaphore
 randomize
 extends
 mailbox
+return
+import
 '''
 
 ReservedWords = string.split(ReservedWordsStr)
@@ -402,6 +422,7 @@ int specific_ver_double(long token)
     if (token==qqai("+:")) return PlusDots;
     if (token==qqai("-:")) return MinusDots;
     if (token==qqai("===")) return Veryequal;
+    if (token==qqai("<<<")) return Veryshiftleft;
     if (token==qqai("==")) return Equal;
     if (token==qqai("!=")) return Notequal;
     if (token==qqai("!==")) return Notequalequal;
@@ -410,7 +431,6 @@ int specific_ver_double(long token)
     if (token==qqai("=<")) return Lessequal;
     if (token==qqai("=>")) return Moreequal;
     if (token==qqai("~^")) return Xnor;
-    if (token==qqai("===")) return Andandand;
     if (token==qqai("++")) return PlusPlus;
     if (token==qqai("--")) return MinusMinus;
     if (token==qqai("**")) return StarStar;

@@ -4,16 +4,23 @@ import os,sys,string,pickle,types
 import logs
 import traceback
 import module_class as mcl
-# from module_class import pr_stmt
-# from module_class import module_class
 import matches
 import pprint
+
+class packagesClass:
+    def __init__(self):
+        self.TYPEDEFS  = {}
+        self.PARAMETERS  = {}
+
 
 if os.path.exists('packages_save.py'):
     sys.path.append('.')
     import packages_save
 else:
-    packages_save = False
+    packages_save = packagesClass()
+
+
+
 def main():
     load_parsed('.')
     dump_all_verilog('all.v')
@@ -81,6 +88,9 @@ def scan1(Key):
     List = DataBase[Key]
     if (List==[]):
         return
+    if Key[0] in ['Localparam','Function','Typedef']:
+        logs.log_error('please treat key=%s list=%s'%(Key,List))
+        return
     for Item in List:
         if len(Item)==2:
             if Item[0]=='Define':
@@ -92,13 +102,13 @@ def scan1(Key):
             else:
                 scan1(Item)
         else:
-            logs.log_err('exxx %s %s'%(Key,Item))
+            logs.log_err('exxx key=%s item=%s len=%d'%(Key,Item,len(Item)))
                 
 PackFile = False
 def add_package(Key):
     global PackFile,Pack2File
     List = DataBase[Key]
-    Vars = matches.matches(List,'package ? ; !Parameters endpackage')
+    Vars = matches.matches(List,'package ? ; !PackageStuff endpackage')
     if Vars:
         Pack = Vars[0][0]
         Pack2File = open('%s_save.py'%Pack,'w')
@@ -851,12 +861,50 @@ def get_list(Item):
         This = get_pair(Vars[1])
         return More+[This]
 
-    Vars = matches.matches(Item,'!Parameters !PackageItem')
+    Vars = matches.matches(Item,'!PackageStuff !PackageItem')
     if Vars:
         More = get_list(Vars[0])
         This = get_list(Vars[1])
         return This+More
 
+    Vars = matches.matches(Item,'localparam !Pairs ;')
+    if Vars:
+        More = get_list(Vars[0])
+        return More
+    Vars = matches.matches(Item,'typedef struct  { !SimpleDefs } ? ;')
+    if Vars:
+        Defs = get_list(Vars[0])
+        Name = get_expr(Vars[1])
+        return [('typedef struct',Name,Defs)]
+
+    Vars = matches.matches(Item,'typedef enum  logic !Width { !Tokens_list } !Typename ;')
+    if Vars:
+        Wid = get_wid(Vars[0])
+        Defs = get_list(Vars[1])
+        Name = get_expr(Vars[2])
+        return [('typedef enum',Name,Wid,Defs)]
+    Vars = matches.matches(Item,'function ?  ( !Header_list ) ; !Statements endfunction')
+    if Vars:
+        Name = Vars[0][0]
+        Header = get_list(Vars[1])
+        Statements = get_list(Vars[2])
+        return [('function',Header,Statements)]
+
+    Vars = matches.matches(Item,'!IntDir !Width ? ;')
+    if Vars:
+        Dir = get_dir(Vars[0])
+        Wid = get_wid(Vars[1])
+        Name = get_expr(Vars[2])
+        return [('item',Dir,Wid,Name)]
+
+    Vars = matches.matches(Item,'#exttype ? ;')
+    if Vars:
+        return [('exttype',Vars[0][0],Vars[1][0])]
+
+    Vars = matches.matches(Item,'localparam !Width !Pairs ;')
+    if Vars:
+        More = get_list(Vars[1])
+        return More
     Vars = matches.matches(Item,'parameter !Pairs ;')
     if Vars:
         More = get_list(Vars[0])
@@ -961,10 +1009,15 @@ def add_module_item(Item):
         List = DataBase[Item]
         if Item[0]=='Definition':
             add_definition(List)
+        elif Item[0]=='Struct':
+            add_struct(List)
         elif Item[0]=='Parameter':
             add_parameter(List[-2])
         elif Item[0]=='Localparam':
-            add_localparam(List[1])
+            if len(List[1])==4:
+                add_localparam(List[2])
+            else:
+                add_localparam(List[1])
         elif Item[0]=='Assign':
             add_hard_assign(List)
         elif Item[0]=='Instance':
@@ -995,12 +1048,24 @@ def add_module_item(Item):
     else:
         logs.log_err('untreated(1) len=%d "%s"'%(len(Item),str(Item)))
 
+def add_struct(List):
+    Vars = matches.matches(List,'struct { ? } ? ;')
+    if Vars:
+        Names = get_list(Vars[1])
+        LL = get_list(Vars[0])
+        for Name in Names:
+            Current.nets[Name] = ('struct',LL)
+
+        
+        return
+    logs.log_error('add_struct got "%s"'%str(List))
 def add_typedef_item(List):
     Vars = matches.matches(List,'typedef struct { ? } ? ;')
     if Vars:
         Name = get_expr(Vars[1])
         LL = get_list(Vars[0])
-        packages_save.TYPEDEFS[Name]=('struct',LL)
+        if packages_save:
+            packages_save.TYPEDEFS[Name]=('struct',LL)
         return
 
     logs.log_error('add_typedef_item got "%s"'%str(List))
@@ -1300,7 +1365,6 @@ def get_definition(List):
 
 def add_definition(List):
 
-
     Vars = matches.matches(List,'enum !WireLogic { !Tokens_list } !Tokens_list ;',False)
     if Vars:
         Dir = get_dir(Vars[0])
@@ -1471,6 +1535,7 @@ def add_parameter(Ptr):
             else:
                 add_parameter(Item)
 def add_localparam(Ptr):
+    print '>>>>>add_localparam',Ptr
     List2 = DataBase[Ptr]
     for Item in List2:
         if len(Item)==2:    
@@ -1512,9 +1577,12 @@ def get_conns(Ptr):
                 res.extend(more)
             elif (Item[0]=='Connection'):
                 List2 = DataBase[Item]
+                print '>>>>',List2
                 Pin = List2[1][0]
                 if Pin=='*':
                     Sig='*'
+                elif len(List2)==2:
+                    Sig = Pin
                 elif List2[3][0]==')':
                     Sig=False    
                 else:
@@ -1569,7 +1637,11 @@ def checkInPackages(Item):
 def findField(Item):
     wrds = string.split(Item,'.')
     Net = wrds[0]
-    Base = OriginalTypeDefs[(Net,Current.Module)]
+    Key = (Net,Current.Module)
+    if Key not in OriginalTypeDefs:
+        logs.log_info('findField failed on net="%s"'%str(Key))
+        return 'findField'
+    Base = OriginalTypeDefs[Key]
     Field = wrds[1]
     Tot,Fields = getStructFields(Base)
     if Field in Fields:

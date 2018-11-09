@@ -9,10 +9,6 @@ import matches
 import types
 
 import scanForRegs
-if os.path.exists('packages_save.py'):
-    import packages_save
-else:
-    packages_save = False
 
 def info(Txt):
     logs.log_info('pacify: %s'%(Txt))

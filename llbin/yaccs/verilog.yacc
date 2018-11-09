@@ -1,9 +1,9 @@
  
-%token module number token endmodule assign  package endpackage typedef exttype struct
+%token module number token endmodule assign  package endpackage typedef exttype struct packed automatic
 %token input  output  inout reg  wire  tri0 tri1 signed  unsigned event logic enum const 
 %token bin hex dig integer real wreal
 %token ubin uhex udig
-%token domino and_and or_or eq3 eq_eq not_eq gr_eq sm_eq
+%token and_and or_or eq3 eq_eq not_eq gr_eq sm_eq
 %token always begin end if else posedge negedge or wait emit
 %token always_comb always_ff always_latch
 %token string defparam parameter localparam case casez casex unique endcase default initial forever
@@ -19,20 +19,21 @@
 %token force release
 %token xnor nand nor repeat
 %token supply0 supply1
-%token newver plusplus starstar shift3 crazy1 crazy2
+%token newver plusplus minusminus starstar shift3 shiftl3 crazy1 crazy2 return 
+%token bit inside import
 
 %right '?' ':' 
 %left and_and
 %left '|' 
 %left '^' xnor nand nor
 %left '&' 
-%left  shift3 shift_left shift_right SignedLeft arith_shift_right
+%left  shift3 shiftl3 shift_left shift_right SignedLeft arith_shift_right
 %left  or_or  
 %left '<' '>' sm_eq gr_eq
 %left '+' '-' 
 %left eq3 eq_eq not_eq noteqeq Veryequal 
 %left '*' '/' '%'  
-%left starstar
+%left starstar inside
 %left UNARY_PREC
 
 %nonassoc else
@@ -41,9 +42,10 @@
 %%
 Main : Mains ;
 Mains : Mains MainItem | MainItem  ;
-MainItem : Module | Define | Package ;
+MainItem : Module | PackageStuff | Define | Package | Import ;
+Import : import token ';'
 Module : module token Hparams Header Module_stuffs endmodule
-Package : package  token ';'  Parameters  endpackage ;
+Package : package  token ';'  PackageStuff  endpackage ;
 
 Hparams : '#' '(' head_params ')' |  '#' '(' ')' | ;
 Header : ';' | '(' Header_list ')' ';' | '(' ')' ';' ;
@@ -56,22 +58,31 @@ Header_item :
     | ExtDir Width token  Width 
     | ExtDir Width token  BusBit 
     | ExtDir Width Width token   
-    | token ;
+    | ExtDir token token
+    | ExtDir token Width token
+    | exttype token 
+    | logic token 
+    | logic Width token 
+    | token token 
+    | token 
 
 
-PackageItem :  Parameter | Typedef ;
-Parameters : Parameters PackageItem | PackageItem ;
+PackageItem :  Parameter | Typedef | Localparam | Function ;
+PackageStuff : PackageStuff PackageItem | PackageItem ;
 Typename : token | exttype ;
 Typedef : 
-    typedef enum logic Width '{' Pairs  '}' Typename ';' ;
-    | typedef struct '{' SimpleDefs  '}' Typename ';' ;
+    typedef enum logic Width '{' Tokens_list  '}' Typename ';' 
+    | typedef struct '{' SimpleDefs  '}' Typename ';' 
+    | typedef struct packed '{' SimpleDefs  '}' Typename ';' ;
 Module_stuffs : Mstuff Module_stuffs | ;
-
+Struct : struct '{' SimpleDefs  '}'  maybeWidth Tokens_list ';'   ;
+maybeWidth : Width | ;
 
 
 Mstuff :
      Definition
     | Typedef
+    | Struct
     | Assign
     | Instance
     | Always
@@ -95,8 +106,10 @@ Define : define string | define token | define token Expr | define  number token
 Initial : initial Statement ;
 
 SimpleDef :
-      IntDir token Width ';'
+      IntDir Width token ';'
     | IntDir token ';'
+    | exttype token ';'
+    | token token ';'
     ;
 SimpleDefs : SimpleDefs SimpleDef | SimpleDef ;
 
@@ -117,10 +130,13 @@ Definition :
     | IntDir InstParams Tokens_list ';'
     | enum WireLogic Width '{' Tokens_list '}' Tokens_list ';'  
     | enum WireLogic '{' Tokens_list '}' Tokens_list ';'  
-    | token domino token token ';'
     | const logic Width Width token '=' '{' Exprs '}' ';'
+    | token Width Tokens_list ';'
+    | token usedDefs ';'
     ;
 
+usedDefs : usedDefs ',' usedDef | usedDef;
+usedDef: token | token Width ;
 
 WireLogic : wire | logic ;
 
@@ -133,17 +149,19 @@ Assign :
 
 StrengthDef :  '(' Strength ',' Strength ')' ;
 Strength : strong1 | strong0 | pull1 | pull0 | weak1 | weak0 | highz1 | highz0 ;
-WidthInt : Width | integer ;
+WidthInt : Width | integer | logic | automatic logic | automatic logic Width | automatic integer unsigned ;
+
+Funcheader :
+      function token ';'
+    | function WidthInt token ';'
+    | function WidthInt token '(' Header_list ')'';'
+
+Maybe : ';' | ;
 Function : 
-      function  token ';' Mem_defs Statements  endfunction
-    | function  token ';' Statements  endfunction
-    | function  WidthInt token ';' Mem_defs Statement  endfunction
-    | function  WidthInt token ';' Statement  endfunction
-    | function  token '(' Header_list ')' ';' Statement  endfunction
-    | function  token '(' Header_list ')' ';' Mem_defs Statement  endfunction
-    | function  WidthInt token '(' Header_list ')' ';' Statement  endfunction
-    | function  WidthInt token '(' Header_list ')' ';' Mem_defs Statement  endfunction
+      Funcheader Mem_defs Statements  endfunction Maybe
+    | Funcheader  Statements  endfunction Maybe
     ; 
+
 Task : 
       task token ';' Mem_defs  Statement endtask  
     | task token ';' Statement endtask  
@@ -173,7 +191,16 @@ Parameter :
     | parameter signed Width Pairs ';'
     | parameter logic  Width Pairs ';'
     ;
-Localparam : localparam Pairs ';' | localparam Width Pairs ';' ;
+Localparam : 
+      localparam Pairs ';' 
+    | localparam Width Pairs ';'
+    | localparam bit  Pairs ';'
+    | localparam logic Width  Pairs ';'
+    | localparam logic Pairs ';'
+    | localparam integer unsigned  Pairs ';'
+    | localparam integer Pairs ';'
+    | localparam token token '=' Crazy  ';'
+    ;
 Defparam : defparam token '=' Expr ';' ;
 Pairs : Pairs ',' Pair | Pair ;
 Pair : token '=' Expr ;
@@ -190,7 +217,6 @@ head_param :
 Instance : 
       token token '(' ')' ';' 
     | token InstParams token '(' ')' ';' 
-    | token token ';' 
     | or '(' Exprs ')' ';' 
     | token token '(' Conns_list ')' ';' 
     | token token '(' Exprs ')' ';' 
@@ -204,6 +230,7 @@ Instance :
 
 Crazy : 
       crazy1 default ':' Consts '}'
+    | crazy1 default ':' number '}'
     | crazy1 Pairs2 '}'
     ;
 
@@ -213,7 +240,7 @@ Pair2 : token ':' Expr | token ':' Crazy3 ;
 Crazy3 :  exttype crazy2 Expr ')' ;
 
 Conns_list : Conns_list ',' Connection | Connection ;
-Connection : '.' '*' | '.' token '(' Expr ')' | '.' token '(' ')' ;
+Connection : '.' '*' | '.' token '(' Expr ')' | '.' token '(' ')' | '.' token ;
 
 AssignParams : '#' '(' Exprs ')' | '#' number | '#' token | '#' floating ;
 Prms_list : Prms_list ',' PrmAssign | PrmAssign ;
@@ -249,7 +276,7 @@ GenStatement :
 
 GenFor_statement : for '(' Soft_assigns ';' Expr ';' Soft_assigns ')' GenStatement ; 
 
-CaseKind : unique case | case ;
+CaseKind : unique case | case |casez | casex ;
 
 
 When : '@' '*' | '@' '(' '*' ')' | '@' token | '@' '(' When_items ')'  ;
@@ -259,6 +286,9 @@ When_item : posedge Expr | negedge Expr | Expr ;
 
 // If_only : if '(' Expr ')' Statement ;
 // If_else : If_only else Statement ;
+
+InStmtType : integer | reg | reg Width | automatic integer | automatic integer unsigned | automatic logic | automatic logic Width ;
+
 Statement : 
      begin Statements end
     | begin end
@@ -266,15 +296,16 @@ Statement :
     | begin ':' token Statements end
     | fork Statements join
     | LSH '=' Expr ';' 
+    | LSH  plusplus';' 
+    | LSH  minusminus';' 
     | LSH '=' AssignParams Expr ';' 
     | LSH sm_eq Expr ';' 
     | LSH sm_eq AssignParams Expr ';' 
     | if '(' Expr ')' Statement 
     | if '(' Expr ')' Statement else Statement 
     | wait Expr ';'
-    | integer Tokens_list ';'
-    | reg Tokens_list ';'
-    | reg Width Tokens_list ';'
+    | return Expr ';'
+    | InStmtType Tokens_list ';'
     | release Expr ';'
     | force Expr  '=' Expr ';'
     | When ';'
@@ -282,13 +313,9 @@ Statement :
     | disable token ';'
     | token '(' ')' ';'
     | token '(' Exprs ')' ';'
-    | CaseKind '(' Expr ')' Cases endcase
-    | CaseKind '(' Expr ')' Cases Default endcase
+    | CaseKind '(' Expr ')' Inside Cases endcase
+    | CaseKind '(' Expr ')' Inside Cases Default endcase
     | CaseKind '(' Expr ')' Default endcase
-    | casez '(' Expr ')' Cases endcase
-    | casez '(' Expr ')' Cases Default endcase
-    | casex '(' Expr ')' Cases endcase
-    | casex '(' Expr ')' Cases Default endcase
     | '#' Expr ';'
     | '#' Expr Statement 
     | token ';'
@@ -299,20 +326,28 @@ Statement :
     | assign LSH '=' Expr ';'
     ;
 
+
+Inside : inside | ;
+
 For_statement : for '(' Soft_assigns ';' Expr ';' Soft_assigns ')' Statement ; 
 Repeat_statement : repeat '(' Expr ')' Statement ; 
 While_statement : while '(' Expr ')' Statement ; 
 Soft_assigns : Soft_assigns ',' Soft_assign | Soft_assign ;
 Soft_assign : LSH '=' Expr | LSH plusplus | integer token '=' Expr | genvar token '=' Expr ;
 Cases : Cases Case | Case ;
-Case : Exprs ':' Statement  | Exprs ':' ';' ;
+Case : Exprs2 ':' Statement  | Exprs2 ':' ';' ;
 Default : default ':'  Statement  | default ':' ';' ;
 
 Exprs : Exprs ',' Expr | Expr ;
+Expr2 : Expr | '[' Expr ':' Expr ']' ;
+Exprs2 : Exprs2 ',' Expr2 | Expr2 ;
 Statements : Statements Statement | Statement ;
 
 
-LSH : token | token Width | token BusBit Width | token BusBit BusBit | token BusBit | CurlyList ;
+LSH : 
+    token | token Width | token BusBit Width | token BusBit BusBit | token BusBit | CurlyList
+    | token BusBit '.' token 
+    ;
 
 Tokens_list : token ',' Tokens_list | token ;
 
@@ -345,6 +380,8 @@ Expr :
     | bin | hex | dig | ubin | uhex | udig
     | Crazy 
     | token Width
+    | token BusBit '.' token Width
+    | token BusBit '.' token 
     | token BusBit Width
     | token BusBit BusBit
     | token BusBit
@@ -372,9 +409,11 @@ Expr :
     | Expr gr_eq Expr
     | Expr sm_eq Expr
     | Expr shift3 Expr
+    | Expr shiftl3 Expr
     | Expr shift_left Expr
     | Expr shift_right Expr
     | Expr arith_shift_right Expr
+    | Expr inside Expr
     | token '(' Exprs ')'
     | '(' Expr ')'
     | CurlyList
