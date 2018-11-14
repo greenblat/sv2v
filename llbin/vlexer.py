@@ -179,7 +179,7 @@ Letters = LowLetters+CapLetters
 Digits='0123456789'
 Alphas = Letters+Digits+'_'
 HexDig = Digits+'abcdef'+'ABCDEF'+'_'+'xX'
-BinDig = '01_xzXZ'
+BinDig = '01_xzXZ?'
 Singles = '?.,[]{}#@()~%^;:/+-*'
 Doubles = '=!<>&|'
 Doubles2 = '=<>&|'
@@ -263,6 +263,13 @@ Table = [
     ,('idle','*','*',             'starstar','add',0)
     ,('starstar','*','',          'idle','push','starstar')
 
+    ,('idle','|','=',             'pluseq','add',0)
+    ,('idle','&','=',             'pluseq','add',0)
+    ,('idle','+','=',             'pluseq','add',0)
+    ,('idle','-','=',             'pluseq','add',0)
+
+    ,('pluseq','=','',             'idle','push','pluseq')
+
     ,('idle','+','+',             'plusplus','add',0)
     ,('plusplus','+','',             'idle','push','plusplus')
 
@@ -298,7 +305,7 @@ Table = [
     ,('idle',Doubles,'',       'idle','push','double')
     ,('idle','"','',                  'string','add',0)
     ,('string','"','',                'idle','push','string')
-    ,('string',Alphas+'.','',                'string','add',0)
+    ,('string',Alphas+'. %-+=(),;!|&/\<>{}[]','',                'string','add',0)
 ]
 
 ReservedWordsStr = '''

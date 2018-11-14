@@ -3,7 +3,7 @@
 %token input  output  inout reg  wire  tri0 tri1 signed  unsigned event logic enum const 
 %token bin hex dig integer real wreal
 %token ubin uhex udig
-%token and_and or_or eq3 eq_eq not_eq gr_eq sm_eq
+%token and_and or_or eq3 eq_eq not_eq gr_eq sm_eq pluseq
 %token always begin end if else posedge negedge or wait emit
 %token always_comb always_ff always_latch
 %token string defparam parameter localparam case casez casex unique endcase default initial forever
@@ -60,7 +60,6 @@ Header_item :
     | ExtDir Width Width token   
     | ExtDir token token
     | ExtDir token Width token
-    | exttype token 
     | logic token 
     | logic Width token 
     | token token 
@@ -69,13 +68,25 @@ Header_item :
 
 PackageItem :  Parameter | Typedef | Localparam | Function ;
 PackageStuff : PackageStuff PackageItem | PackageItem ;
-Typename : token | exttype ;
+Typename : token ;
 Typedef : 
     typedef enum logic Width '{' Tokens_list  '}' Typename ';' 
+    | typedef enum logic Width '{' Pairs  '}' Typename ';' 
     | typedef struct '{' SimpleDefs  '}' Typename ';' 
     | typedef struct packed '{' SimpleDefs  '}' Typename ';' ;
 Module_stuffs : Mstuff Module_stuffs | ;
-Struct : struct '{' SimpleDefs  '}'  maybeWidth Tokens_list ';'   ;
+
+Struct : 
+    struct maybePacked '{' SimpleDefs  '}'  maybeWidth Tails ';'   
+    ;
+
+maybePacked : packed | ;
+Tails : Tail ',' Tails | Tail ;
+Tail : token | token Width ;
+
+
+
+
 maybeWidth : Width | ;
 
 
@@ -108,7 +119,6 @@ Initial : initial Statement ;
 SimpleDef :
       IntDir Width token ';'
     | IntDir token ';'
-    | exttype token ';'
     | token token ';'
     ;
 SimpleDefs : SimpleDefs SimpleDef | SimpleDef ;
@@ -133,6 +143,7 @@ Definition :
     | const logic Width Width token '=' '{' Exprs '}' ';'
     | token Width Tokens_list ';'
     | token usedDefs ';'
+    | automatic token token ';'
     ;
 
 usedDefs : usedDefs ',' usedDef | usedDef;
@@ -187,6 +198,7 @@ Mem_def  :
 Parameter : 
       parameter Pairs ';' 
     | parameter signed Pairs ';'
+    | parameter bit Pairs ';'
     | parameter Width Pairs ';'
     | parameter signed Width Pairs ';'
     | parameter logic  Width Pairs ';'
@@ -207,8 +219,11 @@ Pair : token '=' Expr ;
 
 head_params : head_params ',' head_param | head_param ;
 head_param : 
-    parameter token '=' Expr 
+      parameter token '=' Expr 
+    | parameter Width token '=' Expr 
     | parameter logic Width token '=' Expr 
+    | parameter logic token '=' Expr 
+    | parameter bit token '=' Expr 
     | parameter integer  unsigned token '=' Expr 
     | parameter integer  token '=' Expr 
     | token '=' Expr 
@@ -231,7 +246,10 @@ Instance :
 Crazy : 
       crazy1 default ':' Consts '}'
     | crazy1 default ':' number '}'
+    | crazy1 default ':' token '}'
     | crazy1 Pairs2 '}'
+    | token crazy2 Expr ')'
+    | logic crazy2 Expr ')'
     ;
 
 Pairs2 : Pairs2 ',' Pair2 | Pair2 ;
@@ -259,10 +277,10 @@ GenStatements : GenStatements GenStatement | GenStatement ;
 GenStatement : 
      begin GenStatements end
     | begin ':' token GenStatements end
-    | genvar token ';' 
     | Definition 
     | Assign 
     | Parameter 
+    | Localparam 
     | Defparam 
     | Instance
     | GenFor_statement
@@ -287,7 +305,7 @@ When_item : posedge Expr | negedge Expr | Expr ;
 // If_only : if '(' Expr ')' Statement ;
 // If_else : If_only else Statement ;
 
-InStmtType : integer | reg | reg Width | automatic integer | automatic integer unsigned | automatic logic | automatic logic Width ;
+InStmtType : logic | integer | reg | reg Width | automatic integer | automatic integer unsigned | automatic logic | automatic logic Width | automatic token ;
 
 Statement : 
      begin Statements end
@@ -300,6 +318,7 @@ Statement :
     | LSH  minusminus';' 
     | LSH '=' AssignParams Expr ';' 
     | LSH sm_eq Expr ';' 
+    | LSH pluseq Expr ';' 
     | LSH sm_eq AssignParams Expr ';' 
     | if '(' Expr ')' Statement 
     | if '(' Expr ')' Statement else Statement 
@@ -333,7 +352,7 @@ For_statement : for '(' Soft_assigns ';' Expr ';' Soft_assigns ')' Statement ;
 Repeat_statement : repeat '(' Expr ')' Statement ; 
 While_statement : while '(' Expr ')' Statement ; 
 Soft_assigns : Soft_assigns ',' Soft_assign | Soft_assign ;
-Soft_assign : LSH '=' Expr | LSH plusplus | integer token '=' Expr | genvar token '=' Expr ;
+Soft_assign : LSH '=' Expr | LSH plusplus | integer token '=' Expr | logic Width token '=' Expr | genvar token '=' Expr | LSH pluseq Expr ;
 Cases : Cases Case | Case ;
 Case : Exprs2 ':' Statement  | Exprs2 ':' ';' ;
 Default : default ':'  Statement  | default ':' ';' ;
@@ -416,6 +435,9 @@ Expr :
     | Expr inside Expr
     | token '(' Exprs ')'
     | '(' Expr ')'
+    | '{' shift_left '{' token '}' '}' 
+    | '{' Width  '}' 
+    | '{' Width ',' Width '}' 
     | CurlyList
     | '-' Expr %prec UNARY_PREC
     | '|' Expr %prec UNARY_PREC

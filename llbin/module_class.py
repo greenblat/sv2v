@@ -485,6 +485,8 @@ class module_class:
         if not Net: return
         if type(Net)==types.IntType: return
         if type(Net)==types.StringType:
+            if Net[0] in  '0123456789*': return
+        if type(Net)==types.StringType:
             if "'" in Net: return
             if Net in self.insts:
                 return
@@ -560,8 +562,12 @@ class module_class:
                     for NN in Net[2:]:
                         self.check_net_def(NN)
                     return
-                for NN in Net[1:]:
-                    self.check_net_def(NN)
+                if len(Net[1:])==1:
+                    for NN in Net[1]:
+                        self.check_net_def(NN)
+                else:
+                    for NN in Net[1:]:
+                        self.check_net_def(NN)
                 return
             if Net[0] in ['const','hex','bin','dig']:
                 return
@@ -574,7 +580,7 @@ class module_class:
                 return
 
         logs.log_error('check_net_def module=%s net=%s (%s)'%(self.Module,Net,type(Net)))
-        traceback.print_stack(None,None,logs.Flog)
+        logs.pStack()
 
     def del_inst(self,Inst):
         Inst = clean_inst(Inst)
@@ -769,8 +775,10 @@ class module_class:
 
 def dump_always(Always,Fout):
     if len(Always)==3:
-        
-        Timing = pr_timing(Always[0])
+        if Always[0]!=[]:
+            Timing = pr_timing(Always[0])
+        else:
+            Timing = ''
         Statement = pr_stmt(Always[1],'    ',True)
         Kind=Always[2]
         while '$$$' in Statement:
@@ -798,7 +806,7 @@ def dump_always(Always,Fout):
     logs.log_err('dump_always %d %s'%(len(Always),Always))
     return ''
 
-OPS =  ['~^','^','=','>=','=>','*','/','<','>','+','-','~','!','&','&&','<=','>>','>>>','<<','||','==','!=','|']
+OPS =  ['#','~^','^','=','>=','=>','*','/','<','>','+','-','~','!','&','&&','<=','>>','>>>','<<','||','==','!=','|']
 KEYWORDS = string.split('sub_slice sub_slicebit taskcall functioncall named_begin unsigned if for ifelse edge posedge negedge list case default double_sub')
 
 def support_set(Sig,Bussed=True):
@@ -819,6 +827,7 @@ def support_set__(Sig,Bussed):
     if type(Sig) in [types.IntType]:    return []
     if type(Sig) in [types.StringType]: 
         if Sig[0]=='`': return []
+        if Sig[0]=="'": return []
         if Sig in OPS : return []
         if Sig in KEYWORDS : return []
         return [Sig]
@@ -876,7 +885,8 @@ def support_set__(Sig,Bussed):
         return res
 
 
-    logs.log_err('untreated support set expr %s'%(str(Sig)))
+    logs.log_err('untreated support set expr "%s"'%(str(Sig)))
+    logs.pStack()
     return []
 
 
@@ -906,7 +916,7 @@ class instance_class:
     def add_param(self,Prm,Val):
         self.params[Prm]=Val
     def dump(self,File):
-        File.write('instance %s %s\n'%(self.Type,self.Name))
+        File.write('instance %s %s %s\n'%(self.Type,self.Name,self.params))
         for Pin in self.conns:
             File.write('      conn pin=%s sig=%s\n'%(Pin,self.conns[Pin]))
 
@@ -954,7 +964,7 @@ def pr_inst_params(Dir):
         res = []
         i = 0
         while i in Dir.keys():
-            V = str(Dir[i])
+            V = pr_expr(Dir[i])
             i+=1
             res.append(V)
         return '#(%s)'%(string.join(res,', '))
@@ -1254,8 +1264,8 @@ def pr_dly(Dly):
         res.append(pr_expr(B))
     return '#(%s)'%(string.join(res,', '))
 def pr_strength(Strength):
-    if Strength=='':
-        return ''
+    if Strength=='': return ''
+    if Strength==[]: return ''
     A,B = Strength
     return str('(%s,%s)'%(A,B))
 
